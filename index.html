@@ -56,7 +56,8 @@
       radial-gradient(900px 500px at 85% 80%, #ff4d5e22, transparent 60%),
       var(--bg);
   }
-  .lobby-box { width: 100%; max-width: 760px; margin: auto; }
+  .lobby-box { width: 100%; max-width: 980px; margin: auto; }
+  body.no-net .lobby-box { max-width: 760px; }
   .logo { text-align: center; margin-bottom: 28px; }
   .logo h1 {
     margin: 0; font-size: clamp(36px, 7vw, 64px); font-weight: 800; letter-spacing: 1px;
@@ -64,9 +65,18 @@
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
   .logo p { margin: 6px 0 0; color: var(--muted); }
-  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .cards { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
   body.no-net .net-card { display: none; }
-  @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } }
+  body.no-net .cards { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 640px) { .cards, body.no-net .cards { grid-template-columns: 1fr; } }
+  /* карточка «Онлайн»: создать комнату / или / код + «Войти» */
+  .or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+  .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  .join-row { display: flex; gap: 8px; }
+  .join-row .code-input { flex: 1; min-width: 90px; font-size: 18px; letter-spacing: 3px; padding: 8px; }
+  .join-row button { flex: none; }
+  #onlineCard.hosting .or, #onlineCard.hosting .join-row, #onlineCard.hosting #joinStatus { display: none; }
+  #onlineCard .status:empty { display: none; }
   .card {
     background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
     padding: 20px; display: flex; flex-direction: column; gap: 12px;
@@ -128,12 +138,12 @@
     .logo { margin-bottom: 10px; }
     .logo h1 { font-size: 34px; }
     .logo p { margin-top: 2px; font-size: 13px; }
-    .cards { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .cards { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
     body.no-net .cards { grid-template-columns: 1fr 1fr; max-width: 640px; margin: 0 auto; }
     .card { padding: 12px; gap: 8px; }
     .card h2 { font-size: 16px; }
     .card p { font-size: 12.5px; }
-    #joinBtn { margin-top: auto; }
+    .join-row button { padding: 8px 12px; }
     .lvl-nav b { font-size: 16px; white-space: nowrap; }
     .lvl-nav button { padding: 2px 10px; font-size: 18px; }
     .code-box { flex-wrap: wrap; justify-content: center; }
@@ -189,6 +199,7 @@
   #upDef { border-color: #6ee7ff55; }
   #upProd .t::before { content: '⚒ '; color: var(--gold); }
   #upDef .t::before { content: '🛡 '; }
+  #panel.at-top { bottom: auto !important; }   /* иначе компактный режим тянет панель до низа */
   #unrouteBtn {
     padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;
     border-color: #ff4d5e66; color: #ffb3ba; white-space: nowrap;
@@ -209,6 +220,15 @@
 
   #helpModal .ov-box { text-align: left; max-width: 560px; position: relative; max-height: calc(100vh - 32px); overflow-y: auto; }
   #helpModal h2 { font-size: 24px; padding-right: 40px; }
+  .settings-box { text-align: left; max-width: 420px; position: relative; display: flex; flex-direction: column; gap: 14px; }
+  .settings-box h2 { font-size: 24px; margin: 0; padding-right: 40px; }
+  .settings-box .field { font-size: 13px; }
+  .settings-box .seg button { padding: 9px 6px; font-size: 14px; }
+  .settings-note { margin: 0 !important; font-size: 12.5px; color: var(--muted); }
+  .lobby-gear {
+    position: fixed; z-index: 11;
+    top: var(--hud-t, calc(12px + var(--safe-t))); right: calc(12px + var(--safe-r) + var(--hud-pr, 0px));
+  }
   .close-x {
     position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; padding: 0; border-radius: 50%;
     font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center;
@@ -261,6 +281,7 @@
   <div class="stats" id="stats"></div>
   <div class="buffs" id="buffs"></div>
   <div class="hud-btns" style="display:flex;gap:8px">
+    <button class="icon-btn settings-btn" title="Настройки" aria-label="Настройки"></button>
     <button class="icon-btn" id="helpBtn" title="Как играть" aria-label="Как играть">?</button>
     <button class="icon-btn" id="leaveBtn" title="Выйти в меню (Esc)" aria-label="Выйти в меню">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -293,25 +314,25 @@
 
 <!-- Lobby -->
 <div id="lobby">
+  <button class="icon-btn settings-btn lobby-gear" title="Настройки" aria-label="Настройки"></button>
   <div class="lobby-box">
     <div class="logo">
       <h1>БИТВА БАШЕН</h1>
       <p id="subtitle">Стратегия: вдвоём через интернет или против ботов</p>
     </div>
     <div class="cards" id="cards">
-      <div class="card net-card">
-        <h2>Создать игру</h2>
-        <p>Вы получите код комнаты. Отправьте его другу, чтобы он подключился.</p>
+      <div class="card net-card" id="onlineCard">
+        <h2>Онлайн</h2>
+        <p>Сыграйте с другом: создайте комнату или введите его код.</p>
         <div id="hostArea">
           <button class="primary" id="hostBtn" style="width:100%">Создать комнату</button>
         </div>
         <div class="status" id="hostStatus"></div>
-      </div>
-      <div class="card net-card">
-        <h2>Присоединиться</h2>
-        <p>Введите код, который прислал друг.</p>
-        <input class="code-input" id="codeInput" maxlength="5" placeholder="КОД" autocomplete="off" spellcheck="false">
-        <button class="primary" id="joinBtn">Подключиться</button>
+        <div class="or"><span>или</span></div>
+        <div class="join-row">
+          <input class="code-input" id="codeInput" maxlength="5" placeholder="КОД" autocomplete="off" spellcheck="false">
+          <button class="primary" id="joinBtn">Войти</button>
+        </div>
         <div class="status" id="joinStatus"></div>
       </div>
       <div class="card">
@@ -367,6 +388,21 @@
       <button class="primary" id="leaveNo">Остаться</button>
       <button id="leaveYes" style="border-color:var(--red);color:var(--red)">Выйти в меню</button>
     </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div id="settingsModal" class="hidden" style="position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:#0b0f19b0;padding:16px">
+  <div class="ov-box settings-box">
+    <button class="close-x" id="settingsX" aria-label="Закрыть">✕</button>
+    <h2>Настройки</h2>
+    <div class="field">Вид башен
+      <div class="seg" id="towerStyleSeg"><button data-v="art">Картинки</button><button data-v="classic">Классика</button></div>
+    </div>
+    <div class="field">Вид бойцов
+      <div class="seg" id="unitStyleSeg"><button data-v="art">Солдатики</button><button data-v="classic">Точки</button></div>
+    </div>
+    <p class="settings-note">Классика — первый вариант игры: кружки с числом внутри и восьмиугольные главные здания.</p>
   </div>
 </div>
 
@@ -496,6 +532,7 @@ const RULES_HTML = `
     <li><b>Бустеры</b> спрятаны в некоторых серых башнях, над ними золотой <b>?</b>. Бустер получает тот, кто первым захватит башню:
       ${BOOSTERS.map(b => `<br>${b.icon} <b>${b.name}</b>${b.secs ? ` (${b.secs} с)` : ''}: ${b.text}.`).join('')}</li>
     ${RULES_CONTROLS}
+    <li><b>Настройки</b> (шестерёнка): вид башен и бойцов — картинки или классика, как в первой версии игры.</li>
     <li>Вражеские отряды при встрече уничтожают друг друга один к одному. Захваченная башня теряет один уровень улучшения.</li>
   </ul>`;
 
@@ -506,6 +543,12 @@ let mode = null;          // 'host' | 'guest' | 'solo'
 let me = 0;               // индекс игрока: 0 — синие (хост / игрок против ботов), 1 — красные (гость)
 // Настройки одиночной игры: kind 'train' | 'level'
 let matchCfg = { kind: 'train', enemies: 1, diff: 1, level: 1 };
+
+// Настройки (запоминаются): вид башен и бойцов — 'art' (картинки) или 'classic' (первый вариант игры)
+const SETTINGS_KEY = 'bitva-bashen-settings';
+let settings = { towers: 'art', units: 'art' };
+try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) {}
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} }
 let game = null;
 let peer = null, conn = null;
 let fx = [];              // визуальные эффекты (только локально)
@@ -1048,7 +1091,8 @@ function hostGame() {
         AndroidApp.share(`Заходи в «Битву башен»! Код комнаты: ${code}`);
       }
     };
-    setStatus($('hostStatus'), 'Ждём соперника… Отправьте ему этот код.', 'ok');
+    setStatus($('hostStatus'), IN_TELEGRAM ? 'Ждём соперника… Нажмите «Пригласить».' : 'Ждём соперника… Отправьте ему этот код.', 'ok');
+    $('onlineCard').classList.add('hosting');     // пока ждём — поле для кода не нужно
   });
   p.on('connection', c => {
     if (p !== peer) return;
@@ -1206,6 +1250,7 @@ function leaveGame() {
 
 const HOST_AREA_HTML = $('hostArea').innerHTML;
 function resetLobby() {
+  $('onlineCard').classList.remove('hosting');
   $('hostArea').innerHTML = HOST_AREA_HTML;
   $('hostBtn').onclick = hostGame;
   $('hostBtn').disabled = false;
@@ -1223,7 +1268,8 @@ function openLeaveDialog() {
   $('leaveModal').classList.remove('hidden');
 }
 function closeLeaveDialog() { $('leaveModal').classList.add('hidden'); }
-const paused = () => mode === 'solo' && !$('leaveModal').classList.contains('hidden');
+const paused = () => mode === 'solo' &&
+  (!$('leaveModal').classList.contains('hidden') || !$('settingsModal').classList.contains('hidden'));
 
 // =====================================================================
 //  Запуск матча
@@ -1398,7 +1444,7 @@ function resize() {
 // Высота карты под форму экрана: на широком экране карта шире и ниже, поэтому всё крупнее
 function worldHeightForScreen() {
   const L = layoutBox();
-  return Math.round(Math.min(720, Math.max(540, W * L.availH / L.availW)));
+  return Math.round(Math.min(720, Math.max(470, W * L.availH / L.availW)));
 }
 window.addEventListener('resize', resize);
 resize();
@@ -1528,10 +1574,12 @@ canvas.addEventListener('pointerup', e => {
 });
 
 window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('settingsModal').classList.contains('hidden')) { closeSettings(); return; }
   if (!game || document.activeElement === $('codeInput')) return;
   const k = e.key.toLowerCase();
   if (k === 'escape') {
-    if (!$('leaveModal').classList.contains('hidden')) closeLeaveDialog();
+    if (!$('settingsModal').classList.contains('hidden')) closeSettings();
+    else if (!$('leaveModal').classList.contains('hidden')) closeLeaveDialog();
     else if (!$('helpModal').classList.contains('hidden')) $('helpModal').classList.add('hidden');
     else if (selected.size) selected.clear();
     else if ($('overlay').classList.contains('hidden')) openLeaveDialog();
@@ -1847,7 +1895,7 @@ for (const name of ['soldier-player', ...ENEMY_SPRITE.slice(1)]) {
 const spriteFor = owner => SPR[owner === me ? 'soldier-player' : ENEMY_SPRITE[owner] || 'soldier-desert'] || SPR['soldier-desert'];
 
 function drawUnits(t) {
-  if (SPR['soldier-player'] && SPR['soldier-desert']) drawSoldiers(t);
+  if (settings.units !== 'classic' && SPR['soldier-player'] && SPR['soldier-desert']) drawSoldiers(t);
   else drawUnitDots();                     // картинки не загрузились — рисуем точками, как раньше
 }
 
@@ -1974,6 +2022,7 @@ function towerSpriteName(n) {
 
 // Где рисуется здание (в координатах карты, x не отражён): низ картинки чуть ниже центра узла
 function towerBox(n) {
+  if (settings.towers === 'classic') return null;    // в настройках выбран классический вид — кружки
   const name = towerSpriteName(n), img = SPR_TOWER[name], meta = TOWER_META[name];
   if (!img || !meta) return null;
   const big = scale < 0.7 ? 1.3 : 1;          // на телефоне места хватает — рисуем крупнее
@@ -2278,6 +2327,13 @@ function updatePanel() {
   if (!selected.size || !playing()) { panel.classList.add('hidden'); panelKey = ''; return; }
   panel.classList.remove('hidden');
 
+  // панель не должна закрывать выбранную башню: башня в нижней части экрана — панель сверху поля
+  let sy = 0;
+  for (const id of selected) sy += game.nodes[id].y;
+  const atTop = offY + (sy / selected.size) * scale > innerHeight * 0.55;
+  panel.classList.toggle('at-top', atTop);
+  panel.style.top = atTop ? Math.round(offY + 4) + 'px' : '';
+
   if (selected.size > 1) {
     let sum = 0, routes = 0;
     for (const id of selected) { sum += Math.floor(game.nodes[id].units); if (game.nodes[id].route >= 0) routes++; }
@@ -2436,6 +2492,7 @@ $('leaveBtn').onclick = openLeaveDialog;
 // Кнопка «Назад» на Android: закрыть окно → открыть выход → в меню выйти из приложения.
 // Возвращает true, если нажатие обработано игрой.
 window.androidBack = () => {
+  if (!$('settingsModal').classList.contains('hidden')) { closeSettings(); return true; }
   if (!$('leaveModal').classList.contains('hidden')) { closeLeaveDialog(); return true; }
   if (!$('helpModal').classList.contains('hidden')) { $('helpModal').classList.add('hidden'); return true; }
   if (game) {
@@ -2527,7 +2584,7 @@ function initTelegram() {
 // «Назад» Telegram видна в игре и в открытых окнах; в меню Telegram показывает свою кнопку закрытия
 function syncTgBack() {
   if (!tg) return;
-  const want = !!game || !$('helpModal').classList.contains('hidden');
+  const want = !!game || !$('helpModal').classList.contains('hidden') || !$('settingsModal').classList.contains('hidden');
   if (want === tgBackShown) return;
   tgBackShown = want;
   if (want) tg.BackButton.show(); else tg.BackButton.hide();
@@ -2545,6 +2602,22 @@ function tgHaptic(kind) {
 $('helpBtn').onclick = () => $('helpModal').classList.remove('hidden');
 $('helpClose').onclick = () => $('helpModal').classList.add('hidden');
 $('helpX').onclick = () => $('helpModal').classList.add('hidden');
+
+// ---------- Настройки ----------
+const GEAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+const openSettings = () => $('settingsModal').classList.remove('hidden');
+const closeSettings = () => $('settingsModal').classList.add('hidden');
+for (const b of document.querySelectorAll('.settings-btn')) { b.innerHTML = GEAR_SVG; b.onclick = openSettings; }
+$('settingsX').onclick = closeSettings;
+$('settingsModal').addEventListener('click', e => { if (e.target === $('settingsModal')) closeSettings(); });
+function bindSetting(segId, key) {
+  const seg = $(segId);
+  const sync = () => { for (const o of seg.querySelectorAll('button')) o.classList.toggle('on', o.dataset.v === settings[key]); };
+  for (const b of seg.querySelectorAll('button')) b.onclick = () => { settings[key] = b.dataset.v; saveSettings(); sync(); };
+  sync();
+}
+bindSetting('towerStyleSeg', 'towers');
+bindSetting('unitStyleSeg', 'units');
 $('helpModal').addEventListener('click', e => { if (e.target === $('helpModal')) $('helpModal').classList.add('hidden'); });   // нажатие мимо окна
 
 requestAnimationFrame(frame);
