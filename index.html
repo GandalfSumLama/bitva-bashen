@@ -1,0 +1,2231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f19">
+<title>Битва башен</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0f19;
+    --panel: #141b2d;
+    --panel2: #1b2440;
+    --line: #2a3658;
+    --text: #e6ebf5;
+    --muted: #8c97b2;
+    --blue: #3d9bff;
+    --red: #ff4d5e;
+    --gold: #ffc94d;
+    --cyan: #6ee7ff;
+    /* безопасные отступы: в Telegram на весь экран сверху кнопки Telegram и вырез камеры */
+    --safe-t: 0px; --safe-r: 0px; --safe-b: 0px; --safe-l: 0px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: 'Rubik', system-ui, sans-serif;
+    user-select: none; -webkit-user-select: none;
+    overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
+  }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; }
+  button {
+    font: inherit; color: var(--text); cursor: pointer;
+    background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 16px;
+    transition: background .15s, border-color .15s, transform .05s;
+  }
+  button:hover:not(:disabled) { background: #243059; border-color: #3b4c80; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
+  button.primary:hover:not(:disabled) { background: #5aabff; border-color: #5aabff; }
+  .hidden { display: none !important; }
+
+  /* ---------- Lobby ---------- */
+  #lobby {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex;
+    padding: calc(16px + var(--safe-t)) calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l));
+    overflow-y: auto;
+    background:
+      radial-gradient(900px 500px at 15% 20%, #3d9bff22, transparent 60%),
+      radial-gradient(900px 500px at 85% 80%, #ff4d5e22, transparent 60%),
+      var(--bg);
+  }
+  .lobby-box { width: 100%; max-width: 760px; margin: auto; }
+  .logo { text-align: center; margin-bottom: 28px; }
+  .logo h1 {
+    margin: 0; font-size: clamp(36px, 7vw, 64px); font-weight: 800; letter-spacing: 1px;
+    background: linear-gradient(90deg, var(--blue), #b9a8ff 50%, var(--red));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .logo p { margin: 6px 0 0; color: var(--muted); }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  body.no-net .net-card { display: none; }
+  @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+    padding: 20px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .card h2 { margin: 0; font-size: 18px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+  .grow-top { margin-top: auto; }
+  .field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+  .seg { display: flex; gap: 3px; background: #0e1426; border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+  .seg button { flex: 1; padding: 6px 4px; border: none; background: transparent; font-size: 13px; border-radius: 7px; }
+  .seg button.on { background: var(--blue); color: #fff; font-weight: 700; }
+  .seg button.hardcore { color: #ff8a95; }
+  .seg button.hardcore.on { background: var(--red); color: #fff; }
+  .lvl-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .lvl-nav b { font-size: 20px; }
+  .lvl-nav button { padding: 4px 14px; font-size: 20px; line-height: 1.2; }
+  .lvl-done {
+    align-self: center; padding: 3px 12px; border-radius: 999px;
+    background: #5fe39a22; border: 1px solid #5fe39a88; color: #5fe39a;
+    font-size: 14px; font-weight: 700;
+  }
+  .chip.out { opacity: .45; text-decoration: line-through; }
+  .buffs { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; justify-content: center; }
+  .buffs:empty { visibility: hidden; }
+  .chip.buff { font-weight: 700; border-width: 2px; }
+  body.side .buffs { justify-content: flex-start; flex: none; }
+  .stats.many { display: grid; grid-template-columns: repeat(4, auto); }
+  body.side .stats.many { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  body.side .stats.many .chip { padding: 4px 7px; gap: 5px; overflow: hidden; }
+  .code-box {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: #0e1426; border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px;
+  }
+  .code-box .code { font-size: 30px; font-weight: 800; letter-spacing: 6px; color: var(--gold); }
+  input.code-input {
+    font: inherit; font-size: 22px; font-weight: 700; letter-spacing: 5px; text-transform: uppercase;
+    width: 100%; padding: 10px 12px; border-radius: 10px; text-align: center;
+    background: #0e1426; color: var(--text); border: 1px solid var(--line); outline: none;
+  }
+  input.code-input:focus { border-color: var(--blue); }
+  .status { font-size: 14px; color: var(--muted); min-height: 20px; }
+  .status.err { color: var(--red); }
+  .status.ok { color: #5fe39a; }
+  .rules {
+    margin-top: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+    padding: 16px 20px; font-size: 14px; color: var(--muted); line-height: 1.6;
+  }
+  .rules b { color: var(--text); }
+  .app-exit { display: flex; justify-content: center; margin-top: 14px; }
+  .rules ul { margin: 6px 0 0; padding-left: 20px; }
+  /* Низкий экран (телефон горизонтально): все три карточки в один ряд */
+  @media (max-height: 560px) {
+    #lobby { padding: 10px 16px; }
+    .logo { margin-bottom: 10px; }
+    .logo h1 { font-size: 34px; }
+    .logo p { margin-top: 2px; font-size: 13px; }
+    .cards { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    body.no-net .cards { grid-template-columns: 1fr 1fr; max-width: 640px; margin: 0 auto; }
+    .card { padding: 12px; gap: 8px; }
+    .card h2 { font-size: 16px; }
+    .card p { font-size: 12.5px; }
+    #joinBtn { margin-top: auto; }
+    .lvl-nav b { font-size: 16px; white-space: nowrap; }
+    .lvl-nav button { padding: 2px 10px; font-size: 18px; }
+    .code-box { flex-wrap: wrap; justify-content: center; }
+    .code-box .code { font-size: 22px; letter-spacing: 3px; }
+    input.code-input { font-size: 18px; padding: 8px; }
+    button { padding: 9px 12px; }
+    .rules { font-size: 12.5px; padding: 12px 16px; margin-top: 10px; }
+  }
+  kbd {
+    display: inline-block; min-width: 20px; padding: 0 5px; border-radius: 5px; text-align: center;
+    background: #0e1426; border: 1px solid var(--line); color: var(--text); font: 600 12px/18px 'Rubik', sans-serif;
+  }
+
+  /* ---------- HUD ---------- */
+  #hud {
+    position: fixed; top: var(--safe-t); left: var(--safe-l); right: var(--safe-r); height: 56px; z-index: 5;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 0 16px; pointer-events: none;
+  }
+  #hud > * { pointer-events: auto; }
+  .stats { display: flex; gap: 10px; align-items: center; font-size: 14px; }
+  .chip {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+    background: var(--panel); border: 1px solid var(--line); white-space: nowrap;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .help-btn { width: 36px; height: 36px; padding: 0; border-radius: 50%; font-weight: 700; }
+
+  /* ---------- Upgrade panel ---------- */
+  #panel {
+    position: fixed; left: 50%; bottom: calc(16px + var(--safe-b)); transform: translateX(-50%); z-index: 5;
+    background: #141b2df2; border: 1px solid var(--line); border-radius: 14px;
+    padding: 8px 12px; width: 600px; max-width: calc(100vw - 32px);
+    box-shadow: 0 10px 30px #0008;
+  }
+  .phead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  #pTitle { font-weight: 700; font-size: 15px; }
+  #pInfo { color: var(--muted); font-size: 13px; }
+  #unrouteBtn { margin-left: auto; padding: 3px 10px; font-size: 13px; border-color: #ff4d5e66; color: #ffb3ba; }
+  .pbtns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pbtns button { flex: 1; min-width: 200px; text-align: left; padding: 6px 12px; }
+  .pbtns button .t { display: block; font-weight: 600; font-size: 14px; }
+  .pbtns button .s { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  #upProd .t::before { content: '⚒ '; color: var(--gold); }
+  #upDef .t::before { content: '🛡 '; }
+
+  /* ---------- Overlay ---------- */
+  #overlay {
+    position: fixed; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center;
+    background: #0b0f19b0; backdrop-filter: blur(3px); padding: 16px;
+  }
+  .ov-box {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+    padding: 28px 32px; text-align: center; max-width: 440px; width: 100%;
+  }
+  .ov-box h2 { margin: 0 0 8px; font-size: 40px; font-weight: 800; }
+  .ov-box p { margin: 0 0 20px; color: var(--muted); }
+  .ov-box .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+  #helpModal .ov-box { text-align: left; max-width: 560px; }
+  #helpModal h2 { font-size: 24px; }
+  #toast {
+    position: fixed; top: calc(64px + var(--safe-t)); left: 50%; transform: translateX(-50%); z-index: 6;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 14px; font-size: 14px; pointer-events: none; transition: opacity .3s;
+  }
+
+  /* ---------- Телефон в горизонтальном положении: поле слева, панель справа ---------- */
+  body.side #hud {
+    top: calc(8px + var(--safe-t)); right: calc(8px + var(--safe-r)); left: auto; bottom: auto; width: var(--side); height: auto;
+    flex-direction: column; align-items: stretch; gap: 6px; padding: 0;
+  }
+  body.side .hud-btns { order: -1; }
+  body.side .hud-btns button { flex: 1; padding: 7px 6px; font-size: 14px; height: auto; border-radius: 10px; }
+  body.side .stats { flex-direction: column; align-items: stretch; gap: 4px; font-size: 12px; }
+  body.side .chip { padding: 4px 10px; }
+  body.side #panel {
+    left: auto; right: calc(8px + var(--safe-r)); bottom: calc(8px + var(--safe-b)); transform: none;
+    width: var(--side); max-width: none; padding: 8px;
+  }
+  body.side .phead { flex-direction: column; align-items: stretch; gap: 2px; margin-bottom: 5px; }
+  body.side #pTitle { font-size: 14px; }
+  body.side #pInfo { font-size: 11px; line-height: 1.35; }
+  body.side #unrouteBtn { margin: 4px 0 0; padding: 6px 8px; }
+  body.side .pbtns { flex-direction: column; gap: 5px; }
+  body.side .pbtns button { min-width: 0; padding: 6px 8px; }
+  body.side .pbtns button .t { font-size: 12px; }
+  body.side .pbtns button .s { font-size: 11px; }
+  body.side #toast { top: calc(8px + var(--safe-t)); left: calc((100vw - var(--side)) / 2); }
+  body.side #panel kbd, body.touch kbd { display: none; }
+  body.side .ov-box { padding: 16px 20px; max-height: calc(100vh - 24px); overflow-y: auto; }
+  body.side .ov-box h2 { font-size: 26px; }
+  body.side .ov-box p { margin-bottom: 12px; }
+
+  /* Подсказка повернуть телефон (в приложении ориентация и так горизонтальная) */
+  #rotateHint {
+    display: none; position: fixed; inset: 0; z-index: 30; background: var(--bg);
+    flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    text-align: center; padding: 24px; color: var(--muted);
+  }
+  #rotateHint b { color: var(--text); font-size: 20px; }
+  #rotateHint .ico { font-size: 60px; animation: rot 1.8s ease-in-out infinite; }
+  @keyframes rot { 0%, 25% { transform: rotate(0); } 60%, 100% { transform: rotate(90deg); } }
+  @media (orientation: portrait) and (max-width: 700px) { body.ingame #rotateHint { display: flex; } }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="stats" id="stats"></div>
+  <div class="buffs" id="buffs"></div>
+  <div class="hud-btns" style="display:flex;gap:8px">
+    <button id="allBtn" title="Выбрать все свои башни (A)">Все</button>
+    <button class="help-btn" id="helpBtn" title="Как играть">?</button>
+    <button id="leaveBtn" title="Покинуть игру (Esc)">Выйти</button>
+  </div>
+</div>
+
+<div id="rotateHint">
+  <div class="ico">📱</div>
+  <b>Поверните телефон</b>
+  <div>Играть удобнее в горизонтальном положении</div>
+</div>
+
+<!-- Upgrade panel -->
+<div id="panel" class="hidden">
+  <div class="phead">
+    <span id="pTitle"></span><span id="pInfo"></span>
+    <button id="unrouteBtn" class="hidden">✕ Убрать путь <kbd>X</kbd></button>
+  </div>
+  <div class="pbtns" id="pBtns">
+    <button id="upProd"><span class="t"></span><span class="s"></span></button>
+    <button id="upDef"><span class="t"></span><span class="s"></span></button>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<!-- Lobby -->
+<div id="lobby">
+  <div class="lobby-box">
+    <div class="logo">
+      <h1>БИТВА БАШЕН</h1>
+      <p id="subtitle">Стратегия: вдвоём через интернет или против ботов</p>
+    </div>
+    <div class="cards" id="cards">
+      <div class="card net-card">
+        <h2>Создать игру</h2>
+        <p>Вы получите код комнаты. Отправьте его другу, чтобы он подключился.</p>
+        <div id="hostArea">
+          <button class="primary" id="hostBtn" style="width:100%">Создать комнату</button>
+        </div>
+        <div class="status" id="hostStatus"></div>
+      </div>
+      <div class="card net-card">
+        <h2>Присоединиться</h2>
+        <p>Введите код, который прислал друг.</p>
+        <input class="code-input" id="codeInput" maxlength="5" placeholder="КОД" autocomplete="off" spellcheck="false">
+        <button class="primary" id="joinBtn">Подключиться</button>
+        <div class="status" id="joinStatus"></div>
+      </div>
+      <div class="card">
+        <h2>Тренировка</h2>
+        <div class="field">Сложность
+          <div class="seg" id="diffSeg">
+            <button data-v="0">Лёгкий</button><button data-v="1" class="on">Средний</button><button data-v="2">Сложный</button><button data-v="3" class="hardcore">Хардкор</button>
+          </div>
+        </div>
+        <div class="field">Соперники
+          <div class="seg" id="enemySeg">
+            <button data-v="1" class="on">1</button><button data-v="2">2</button><button data-v="3">3</button>
+          </div>
+        </div>
+        <button id="soloBtn" class="grow-top">Играть с ботами</button>
+      </div>
+      <div class="card">
+        <h2>Уровни</h2>
+        <div class="lvl-nav">
+          <button id="lvlPrev" aria-label="Предыдущий уровень">‹</button>
+          <b id="lvlTitle">Уровень 1</b>
+          <button id="lvlNext" aria-label="Следующий уровень">›</button>
+        </div>
+        <div id="lvlDone" class="lvl-done hidden">✓ Пройден</div>
+        <p id="lvlInfo"></p>
+        <button id="levelBtn" class="primary grow-top">Играть уровень</button>
+      </div>
+    </div>
+    <div class="rules" id="rulesText"></div>
+    <div class="app-exit hidden" id="appExitRow"><button id="appExitBtn">Выйти из игры</button></div>
+  </div>
+</div>
+
+<!-- Game over / disconnect overlay -->
+<div id="overlay" class="hidden">
+  <div class="ov-box">
+    <h2 id="ovTitle"></h2>
+    <p id="ovText"></p>
+    <div class="row">
+      <button class="primary hidden" id="nextBtn">Следующий уровень</button>
+      <button class="primary" id="rematchBtn">Реванш</button>
+      <button id="menuBtn">В меню</button>
+    </div>
+  </div>
+</div>
+
+<!-- Leave confirmation -->
+<div id="leaveModal" class="hidden" style="position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:#0b0f19b0;padding:16px">
+  <div class="ov-box">
+    <h2 style="font-size:28px">Покинуть игру?</h2>
+    <p id="leaveText">Вы вернётесь в главное меню.</p>
+    <div class="row">
+      <button class="primary" id="leaveNo">Остаться</button>
+      <button id="leaveYes" style="border-color:var(--red);color:var(--red)">Выйти в меню</button>
+    </div>
+  </div>
+</div>
+
+<!-- Help -->
+<div id="helpModal" class="hidden" style="position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:#0b0f19b0;padding:16px">
+  <div class="ov-box">
+    <h2>Как играть</h2>
+    <div class="rules" style="margin:0;border:none;padding:0;background:none" id="helpText"></div>
+    <div class="row" style="margin-top:16px"><button class="primary" id="helpClose">Понятно</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// =====================================================================
+//  Константы и баланс
+// =====================================================================
+const W = 1200, H = 720;
+// Сетевая игра временно скрыта из меню (код остаётся рабочим); true — вернуть
+const NETWORK_ENABLED = false;
+const PEER_PREFIX = 'bitva-bashen-v1-';
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+const COL = {
+  '-1': { main: '#8a93a6', dark: '#232836', light: '#c4cad6' },
+  '0':  { main: '#3d9bff', dark: '#10294a', light: '#a6d3ff' },
+  '1':  { main: '#ff4d5e', dark: '#4a1119', light: '#ffb3ba' },
+  '2':  { main: '#34d399', dark: '#0d3b2c', light: '#a7f3d0' },
+  '3':  { main: '#c084fc', dark: '#35174f', light: '#e9d5ff' },
+};
+const TEAM = ['СИНИЕ', 'КРАСНЫЕ', 'ЗЕЛЁНЫЕ', 'ФИОЛЕТОВЫЕ'];
+const TEAM_ACC = ['СИНИХ', 'КРАСНЫХ', 'ЗЕЛЁНЫХ', 'ФИОЛЕТОВЫХ'];
+const TEAM_NAME = ['Синие', 'Красные', 'Зелёные', 'Фиолетовые'];
+
+// Сложность ботов:
+//   react — время на раздумье (с), actions — действий за раз, margin — запас сил для атаки,
+//   defend — шанс заметить угрозу, upgrade — шанс заняться улучшениями, eco — сколько войск
+//   бот оставляет сверх цены улучшения, humanBonus — насколько охотнее бьёт игрока (минус — избегает),
+//   botPenalty — насколько неохотно бьёт других ботов (сложные вместе давят на игрока),
+//   prodMul — множитель производства, startBonus — войск на старте, firstMove — пауза перед первым ходом (с)
+const DIFFS = [
+  { name: 'Лёгкий',  react: [4.0, 5.5], actions: 1, margin: 2.2, defend: 0.25, upgrade: 0.3, eco: 40,
+    humanBonus: -20, botPenalty: 0, prodMul: 0.8, startBonus: -5, firstMove: 12 },
+  { name: 'Средний', react: [1.3, 2.2], actions: 2, margin: 1.15, defend: 1, upgrade: 1, eco: 25,
+    humanBonus: 4, botPenalty: 0, prodMul: 1, startBonus: 0, firstMove: 1.5 },
+  { name: 'Сложный', react: [0.6, 1.0], actions: 3, margin: 1.05, defend: 1, upgrade: 1, eco: 20,
+    humanBonus: 12, botPenalty: -5, prodMul: 1.1, startBonus: 5, firstMove: 1 },
+  // хардкор: всё на максимум, боты между собой не воюют, главное здание сразу с фортом
+  { name: 'Хардкор', react: [0.2, 0.35], actions: 6, margin: 1.0, defend: 1, upgrade: 1, eco: 5,
+    humanBonus: 45, botPenalty: -60, prodMul: 1.7, startBonus: 30, firstMove: 0.3, baseDef: 1 },
+];
+
+// Уровни: [соперников, сложность, башен]. После десятого уровня — три сложных бота,
+// башен всё больше, а соперники стартуют с запасом войск; с 15-го — хардкор.
+const LEVELS = [
+  [1, 0, 10], [1, 0, 12], [1, 1, 12], [2, 0, 14], [2, 1, 14],
+  [1, 2, 14], [2, 1, 16], [3, 0, 18], [2, 2, 16], [3, 1, 20],
+];
+function levelParams(n) {
+  if (n <= LEVELS.length) {
+    const [enemies, diff, towers] = LEVELS[n - 1];
+    return { enemies, diff, towers, bonus: 0 };
+  }
+  if (n < 15) return { enemies: 3, diff: 2, towers: 18 + (n - 10), bonus: (n - 10) * 5 };
+  return { enemies: 3, diff: 3, towers: Math.min(26, 18 + (n - 14)), bonus: Math.min(60, (n - 15) * 5) };
+}
+
+const CFG = {
+  speed: 62,                         // скорость войск, px/с
+  baseProd: 1.2, baseProdPer: 0.6,   // производство главного здания
+  towerProd: [0, 0.6, 1.0, 1.5],     // производство казармы по уровням
+  strength: [1, 1.5, 2, 3],          // сколько атакующих нужно на одного защитника
+  shootRate: [0, 0.8, 1.5, 2.5],     // выстрелов в секунду у форта
+  shootRange: [0, 105, 120, 140],    // радиус стрельбы форта
+  cost: [10, 20, 35],                // цена улучшения до ур. 1/2/3
+  flow: 2,                           // войск в секунду по проложенному пути
+};
+
+// Бустеры: спрятаны примерно в каждой третьей серой башне (над ней золотой «?»).
+// Кто первым захватит такую башню, тот и получает бустер.
+const BOOSTERS = [
+  { key: 'speed',  icon: '⚡', name: 'Ускорение',       text: 'бойцы бегут в 1,7 раза быстрее',     secs: 12, color: '#6ee7ff' },
+  { key: 'dmg',    icon: '⚔️', name: 'Двойной урон',    text: 'каждый боец бьёт за двоих',          secs: 12, color: '#ff8a3d' },
+  { key: 'shield', icon: '🛡️', name: 'Щит',             text: 'ваши башни держатся вдвое крепче',   secs: 15, color: '#a5b4fc' },
+  { key: 'prod',   icon: '🏭', name: 'Производство ×2', text: 'все ваши здания производят вдвое больше', secs: 12, color: '#ffc94d' },
+  { key: 'reinf',  icon: '🎖️', name: 'Подкрепление',    text: '+25 бойцов в захваченной башне',     secs: 0,  color: '#5fe39a' },
+];
+const BOOSTER_CHANCE = 0.33, SPEED_MUL = 1.7, REINF_UNITS = 25;
+
+// Правила: на телефоне (и в приложении) — управление пальцем, на компьютере — мышью и клавишами
+const IS_TOUCH = !!window.AndroidApp || matchMedia('(pointer: coarse)').matches;
+// Запущено внутри Windows-приложения (WebView2): есть F11 и кнопка выхода из игры
+const DESKTOP_APP = !!(window.chrome && window.chrome.webview);
+const RULES_CONTROLS = IS_TOUCH ? `
+    <li><b>Выбрать</b> свою башню: коснитесь её. Долгое нажатие добавляет к выбору ещё башни, кнопка «Все» выбирает все.</li>
+    <li><b>Проложить путь:</b> протяните пальцем от своей башни к цели. Можно и так: выбрать башню и коснуться чужой.
+      Путь прокладывается один раз, и дальше войска сами идут по нему (${CFG.flow} в секунду), пока вы его не уберёте.
+      Можно вести путь и к своей башне, чтобы подкреплять её с тыла. У каждой башни только один путь: новый заменяет старый.</li>
+    <li><b>Убрать путь:</b> коснитесь его линии, нажмите «Убрать путь» в панели башни или проведите тот же путь ещё раз.</li>
+    <li>Кнопка «Выйти» или «Назад» на телефоне возвращает в главное меню.</li>
+    <li><b>Улучшения</b> оплачиваются войсками из самой башни. Выберите одну башню и нажмите в панели справа:
+      <br><b>Казарма</b>: башня начинает производить войска.
+      <br><b>Форт</b>: защитники крепче, а башня стреляет по вражеским войскам рядом.
+      <br>Обычная башня может стать либо казармой, либо фортом. Главное здание может улучшать и то, и другое.</li>` : `
+    <li><b>Выбрать</b> свою башню: левый клик. <kbd>Shift</kbd>+клик добавляет ещё башни, <kbd>A</kbd> выбирает все.</li>
+    <li><b>Проложить путь:</b> перетащите мышью от своей башни к цели. Можно и так: выбрать башню и кликнуть по чужой.
+      Путь прокладывается один раз, и дальше войска сами идут по нему (${CFG.flow} в секунду), пока вы его не уберёте.
+      Можно вести путь и к своей башне, чтобы подкреплять её с тыла. У каждой башни только один путь: новый заменяет старый.</li>
+    <li><b>Убрать путь:</b> кликните по линии пути, нажмите <kbd>X</kbd> на выбранной башне или проведите тот же путь ещё раз.</li>
+    <li><kbd>Esc</kbd> или кнопка «Выйти» возвращает в главное меню.${DESKTOP_APP ? ' <kbd>F11</kbd> — полноэкранный режим.' : ''}</li>
+    <li><b>Улучшения</b> оплачиваются войсками из самой башни. Выберите одну башню, затем:
+      <br><kbd>Q</kbd> <b>Казарма</b>: башня начинает производить войска.
+      <br><kbd>E</kbd> <b>Форт</b>: защитники крепче, а башня стреляет по вражеским войскам рядом.
+      <br>Обычная башня может стать либо казармой, либо фортом. Главное здание может улучшать и то, и другое.</li>`;
+const RULES_HTML = `
+  <b>Цель:</b> захватить главные здания всех соперников. Игрок, у которого захватили главное здание, выбывает, а его башни становятся нейтральными.
+  <ul>
+    <li><b>Одиночная игра:</b> в «Тренировке» выбираются сложность ботов и число соперников (до трёх).
+      В «Уровнях» каждая карта создаётся заново, и с каждым уровнем больше башен и соперников, а боты сильнее.
+      Боты воюют и друг с другом, кроме хардкора: там все боты идут на вас.</li>
+    <li>Главное здание само производит войска. Серые башни нейтральные: в них сидит гарнизон, который нужно перебить.</li>
+    <li><b>Бустеры</b> спрятаны в некоторых серых башнях, над ними золотой <b>?</b>. Бустер получает тот, кто первым захватит башню:
+      ${BOOSTERS.map(b => `<br>${b.icon} <b>${b.name}</b>${b.secs ? ` (${b.secs} с)` : ''}: ${b.text}.`).join('')}</li>
+    ${RULES_CONTROLS}
+    <li>Вражеские отряды при встрече уничтожают друг друга один к одному. Захваченная башня теряет один уровень улучшения.</li>
+  </ul>`;
+
+// =====================================================================
+//  Состояние
+// =====================================================================
+let mode = null;          // 'host' | 'guest' | 'solo'
+let me = 0;               // индекс игрока: 0 — синие (хост / игрок против ботов), 1 — красные (гость)
+// Настройки одиночной игры: kind 'train' | 'level'
+let matchCfg = { kind: 'train', enemies: 1, diff: 1, level: 1 };
+let game = null;
+let peer = null, conn = null;
+let fx = [];              // визуальные эффекты (только локально)
+let netEvents = [];       // эффекты для отправки гостю
+let selected = new Set();
+let drag = null, hoverId = -1, hoverRoute = -1;
+let mouse = { x: -999, y: -999 };
+let lastSnapshotAt = 0;
+
+const $ = id => document.getElementById(id);
+const canvas = $('c');
+const ctx = canvas.getContext('2d');
+
+// =====================================================================
+//  Правила игры (симуляция выполняется у хоста)
+// =====================================================================
+function capOf(n) { return n.type === 'base' ? 120 + 40 * n.prod : 40 + 20 * n.prod + 15 * n.def; }
+function prodRate(n) {
+  if (n.owner < 0) return 0;
+  return n.type === 'base' ? CFG.baseProd + CFG.baseProdPer * n.prod : CFG.towerProd[n.prod];
+}
+// Скрытая механика (в правилах не описана): когда у игрока становится 4 захваченные башни,
+// его главное здание 10 секунд производит войска вдвое быстрее. Чтобы получить ускорение
+// снова, нужно опуститься ниже четырёх башен и снова дойти до четырёх.
+const BOOST_TOWERS = 4, BOOST_MUL = 2, BOOST_SECS = 10;
+function baseBoosted(g, n) {
+  return n.type === 'base' && n.owner === n.id && g.boostUntil[n.owner] > g.time;   // только своё главное здание
+}
+function updateBoosts(g) {
+  const cnt = Array(g.players).fill(0);
+  for (const x of g.nodes) if (x.owner >= 0 && x.type === 'tower') cnt[x.owner]++;
+  for (let p = 0; p < g.players; p++) {
+    if (cnt[p] >= BOOST_TOWERS && g.towerCnt[p] < BOOST_TOWERS) g.boostUntil[p] = g.time + BOOST_SECS;
+    g.towerCnt[p] = cnt[p];
+  }
+}
+function effRate(g, n) {
+  if (n.owner < 0) return 0;
+  return prodRate(n) * (baseBoosted(g, n) ? BOOST_MUL : 1) * (g.prodMul ? g.prodMul[n.owner] : 1)
+    * (buff(g, n.owner, 'prod') ? 2 : 1);
+}
+
+// Активен ли бустер у игрока (у гостя в сетевой игре g.time = 0, а в buffs — остаток секунд)
+function buff(g, p, key) { return p >= 0 && !!g.buffs && !!g.buffs[p] && g.buffs[p][key] > g.time; }
+
+function placeBoosters(nodes, duel) {
+  const pick = () => Math.floor(Math.random() * BOOSTERS.length);
+  if (duel) {
+    // в дуэли башни идут симметричными парами (3,4), (5,6)… — бустеры тоже парами
+    for (let i = 3; i + 1 < nodes.length; i += 2) {
+      if (Math.random() < BOOSTER_CHANCE) nodes[i].booster = nodes[i + 1].booster = pick();
+    }
+    return;
+  }
+  // не кладём бустеры в стартовые башни у самых баз, чтобы никому не везло с первой минуты
+  const bases = nodes.filter(n => n.type === 'base');
+  const towers = nodes.filter(n => n.type === 'tower' && bases.every(b => Math.hypot(b.x - n.x, b.y - n.y) > 240));
+  for (const t of towers) if (Math.random() < BOOSTER_CHANCE) t.booster = pick();
+  const free = towers.filter(t => t.booster < 0).sort(() => Math.random() - 0.5);
+  while (towers.length - free.length < 2 && free.length) free.pop().booster = pick();
+}
+
+function grantBooster(g, p, n) {
+  const idx = n.booster, b = BOOSTERS[idx];
+  n.booster = -1;
+  if (b.key === 'reinf') n.units += REINF_UNITS;
+  else g.buffs[p][b.key] = g.time + b.secs;
+  emit([3, n.x, n.y, p, idx]);
+  onBooster(p, idx);
+}
+
+function onBooster(p, idx) {
+  const b = BOOSTERS[idx];
+  if (p === me) { toast(`${b.icon} ${b.name}${b.secs ? ` на ${b.secs} с` : ''}: ${b.text}`); tgHaptic('medium'); }
+  else if (game && game.players > 1) toast(`${TEAM_NAME[p]} получили: ${b.icon} ${b.name}`);
+}
+
+function canBranch(n, b) { return n.type === 'base' || (b === 'prod' ? n.def === 0 : n.prod === 0); }
+
+function makeNode(nodes, x, y, type, owner, units) {
+  nodes.push({
+    id: nodes.length, x: Math.round(x), y: Math.round(y), r: type === 'base' ? 34 : 24,
+    type, owner, units, prod: 0, def: 0, cd: 0, route: -1, flowCd: 0, booster: -1,
+  });
+}
+
+// Карта для сетевой дуэли: симметрична относительно центра, чтобы было честно
+function genDuelMap() {
+  const nodes = [];
+  const mk = (x, y, type, owner, units) => makeNode(nodes, x, y, type, owner, units);
+  mk(110, H / 2, 'base', 0, 20);
+  mk(W - 110, H / 2, 'base', 1, 20);
+  mk(W / 2, H / 2, 'tower', -1, 30);
+
+  let pairs = 0, tries = 0;
+  while (pairs < 7 && tries++ < 8000) {
+    const x = 170 + Math.random() * (W / 2 - 220);
+    const y = 70 + Math.random() * (H - 140);
+    const mx = W - x, my = H - y;
+    if (nodes.some(n => Math.hypot(n.x - x, n.y - y) < 115)) continue;
+    if (Math.hypot(mx - x, my - y) < 115) continue;
+    const distBase = Math.hypot(x - 110, y - H / 2);
+    const garrison = Math.round(4 + distBase / 45 + Math.random() * 5);
+    mk(x, y, 'tower', -1, garrison);
+    mk(mx, my, 'tower', -1, garrison);
+    pairs++;
+  }
+  return nodes;
+}
+
+// Случайная карта на 2–4 игрока. Базы игроков всегда идут первыми: nodes[p] — база игрока p.
+// Игрок-человек (0) стоит слева; у каждой базы рядом есть пара несложных башен.
+const BASE_SPOTS = {
+  2: [[110, H / 2], [W - 110, H / 2]],
+  3: [[110, H / 2], [W - 140, 120], [W - 140, H - 120]],
+  4: [[130, 120], [W - 130, H - 120], [W - 130, 120], [130, H - 120]],
+};
+function genArenaMap(players, towerCount, enemyBonus) {
+  const nodes = [];
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const flipY = Math.random() < 0.5;
+  BASE_SPOTS[players].forEach(([x, y], p) => {
+    x += rnd(-25, 25); y += rnd(-35, 35);
+    if (flipY) y = H - y;
+    makeNode(nodes, Math.min(W - 70, Math.max(70, x)), Math.min(H - 70, Math.max(70, y)),
+      'base', p, p === 0 ? 20 : 20 + enemyBonus);
+  });
+  const bases = nodes.slice();
+  const minD = Math.min(125, Math.max(88, Math.sqrt(W * H / (towerCount + players)) * 0.6));
+  const free = (x, y, d) => nodes.every(n => Math.hypot(n.x - x, n.y - y) >= (n.type === 'base' ? d + 25 : d));
+  const garrisonAt = (x, y) => {
+    const near = Math.min(...bases.map(b => Math.hypot(b.x - x, b.y - y)));
+    return Math.round(4 + near / 40 + Math.random() * 6);
+  };
+
+  // сначала по паре башен у каждой базы, чтобы у всех был честный старт
+  for (const b of bases) {
+    for (let k = 0, tries = 0; k < 2 && tries < 400; tries++) {
+      const a = Math.random() * Math.PI * 2, d = rnd(125, 230);
+      const x = b.x + Math.cos(a) * d, y = b.y + Math.sin(a) * d;
+      if (x < 50 || x > W - 50 || y < 50 || y > H - 50 || !free(x, y, minD * 0.9)) continue;
+      makeNode(nodes, x, y, 'tower', -1, Math.round(rnd(5, 9)));
+      k++;
+    }
+  }
+  for (let tries = 0; nodes.length < players + towerCount && tries < 20000; tries++) {
+    const x = rnd(60, W - 60), y = rnd(55, H - 55);
+    if (free(x, y, minD)) makeNode(nodes, x, y, 'tower', -1, garrisonAt(x, y));
+  }
+  return nodes;
+}
+
+// cfg: { duel: true } для сетевой игры или { players, towers, bonus, diffs } для игры с ботами
+function newGame(cfg) {
+  const players = cfg.duel ? 2 : cfg.players;
+  const nodes = cfg.duel ? genDuelMap() : genArenaMap(players, cfg.towers, cfg.bonus || 0);
+  const bots = [], prodMul = Array(players).fill(1);
+  if (!cfg.duel) for (let p = 1; p < players; p++) {
+    const D = DIFFS[cfg.diffs[p - 1]];
+    bots.push({ p, diff: cfg.diffs[p - 1], timer: D.firstMove + p * 0.4 });
+    prodMul[p] = D.prodMul;
+    nodes[p].units = Math.max(5, nodes[p].units + D.startBonus);
+    nodes[p].def = D.baseDef || 0;
+  }
+  placeBoosters(nodes, !!cfg.duel);
+  return {
+    nodes, units: [], nextId: 1, countdown: 3, over: null, players, alive: Array(players).fill(true), bots,
+    time: 0, boostUntil: Array(players).fill(0), towerCnt: Array(players).fill(0), prodMul,
+    buffs: Array.from({ length: players }, () => ({})),   // до какого g.time действует каждый бустер
+  };
+}
+
+// Событие для эффектов: [0, …] выстрел, [1, …] захват, [2, p] игрок выбыл, [3, x, y, p, i] бустер
+function emit(ev) {
+  if (ev[0] !== 2) fx.push({ a: ev, t: 0 });
+  if (mode === 'host') netEvents.push(ev);
+}
+
+function spawnUnit(g, from, target, off, delay) {
+  const ang = Math.atan2(target.y - from.y, target.x - from.x);
+  const cx = Math.cos(ang), cy = Math.sin(ang);
+  g.units.push({
+    id: g.nextId++, owner: from.owner, target: target.id,
+    x: from.x + cx * from.r * 0.9 - cy * off,
+    y: from.y + cy * from.r * 0.9 + cx * off,
+    delay,
+  });
+}
+
+// Постоянный путь: башня сама отправляет войска к цели, пока путь не убран
+function setRoute(g, player, fromIds, to) {
+  const target = g.nodes[to];
+  if (!target || g.over !== null) return;
+  for (const id of fromIds) {
+    const n = g.nodes[id];
+    if (!n || n.owner !== player || id === to) continue;
+    n.route = to;
+    // Без путей по кругу: если цепочка своих путей от цели возвращается сюда, разрываем её
+    // перед этой башней (частный случай — встречный путь A→B, B→A)
+    let cur = target;
+    for (let k = 0; k < g.nodes.length && cur.owner === player && cur.route >= 0; k++) {
+      if (cur.route === id) { cur.route = -1; break; }
+      cur = g.nodes[cur.route];
+    }
+  }
+}
+
+function clearRoute(g, player, id) {
+  const n = g.nodes[id];
+  if (n && n.owner === player) n.route = -1;
+}
+
+function upgrade(g, player, id, branch) {
+  const n = g.nodes[id];
+  if (!n || n.owner !== player || g.over !== null) return false;
+  if (branch !== 'prod' && branch !== 'def') return false;
+  if (!canBranch(n, branch)) return false;
+  const lv = n[branch];
+  if (lv >= 3 || n.units < CFG.cost[lv]) return false;
+  n.units -= CFG.cost[lv];
+  n[branch]++;
+  return true;
+}
+
+function arrive(g, u, n) {
+  if (n.owner === u.owner) { n.units += 1; return; }
+  const dmg = buff(g, u.owner, 'dmg') ? 2 : 1;                                   // бустер «Двойной урон»
+  const str = CFG.strength[n.def] * (buff(g, n.owner, 'shield') ? 2 : 1);        // бустер «Щит»
+  n.units -= dmg / str;
+  if (n.units < -1e-6) {
+    n.units = -n.units * str / dmg;  // остаток переходит к атакующему
+    n.owner = u.owner;
+    n.cd = 0;
+    n.route = -1;
+    if (n.prod > 0) n.prod--;
+    if (n.def > 0) n.def--;
+    emit([1, n.x, n.y, u.owner]);
+    if (u.owner === me && mode !== 'sim') tgHaptic('light');
+    if (n.booster >= 0) grantBooster(g, u.owner, n);
+  }
+}
+
+function collide(g) {
+  const C = 12, grid = new Map();
+  const key = (cx, cy) => cx * 4096 + cy;
+  for (const u of g.units) {
+    if (u.dead || u.delay > 0) continue;
+    const k = key((u.x / C) | 0, (u.y / C) | 0);
+    let a = grid.get(k);
+    if (!a) grid.set(k, a = []);
+    a.push(u);
+  }
+  for (const u of g.units) {
+    if (u.dead || u.delay > 0) continue;
+    const cx = (u.x / C) | 0, cy = (u.y / C) | 0;
+    search:
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      const a = grid.get(key(cx + i, cy + j));
+      if (!a) continue;
+      for (const v of a) {
+        if (v.dead || v.owner === u.owner) continue;
+        const dx = v.x - u.x, dy = v.y - u.y;
+        if (dx * dx + dy * dy < 64) {
+          // боец с «Двойным уроном» побеждает обычного и остаётся в строю
+          const ud = buff(g, u.owner, 'dmg'), vd = buff(g, v.owner, 'dmg');
+          if (ud && !vd) v.dead = true;
+          else if (vd && !ud) u.dead = true;
+          else u.dead = v.dead = true;
+          break search;
+        }
+      }
+    }
+  }
+}
+
+function shoot(g, dt) {
+  for (const n of g.nodes) {
+    if (n.owner < 0 || n.def === 0) continue;
+    if (n.cd > 0) { n.cd -= dt; if (n.cd > 0) continue; }
+    const R = CFG.shootRange[n.def];
+    let best = null, bd = R * R;
+    for (const u of g.units) {
+      if (u.dead || u.delay > 0 || u.owner === n.owner) continue;
+      const dx = u.x - n.x, dy = u.y - n.y, d2 = dx * dx + dy * dy;
+      if (d2 < bd) { bd = d2; best = u; }
+    }
+    if (best) {
+      best.dead = true;
+      n.cd = 1 / CFG.shootRate[n.def];
+      emit([0, n.x, n.y, Math.round(best.x), Math.round(best.y), n.owner]);
+    }
+  }
+}
+
+function step(g, dt) {
+  if (g.over !== null) return;
+  if (g.countdown > 0) { g.countdown -= dt; return; }
+  g.time += dt;
+  updateBoosts(g);
+
+  for (const n of g.nodes) {
+    const rate = effRate(g, n), cap = capOf(n);
+    if (rate > 0 && n.units < cap) n.units = Math.min(cap, n.units + rate * dt);
+
+    if (n.route >= 0 && n.owner >= 0) {
+      n.flowCd -= dt;
+      if (n.flowCd <= 0 && n.units >= 1) {
+        n.units -= 1;
+        n.flowCd = 1 / CFG.flow;
+        spawnUnit(g, n, g.nodes[n.route], (Math.random() - 0.5) * 10, 0);
+      }
+    }
+  }
+
+  const speedOf = Array.from({ length: g.players }, (_, p) => CFG.speed * dt * (buff(g, p, 'speed') ? SPEED_MUL : 1));
+  for (const u of g.units) {
+    if (u.delay > 0) { u.delay -= dt; continue; }
+    const s = speedOf[u.owner];
+    const t = g.nodes[u.target];
+    const dx = t.x - u.x, dy = t.y - u.y, d = Math.hypot(dx, dy);
+    if (d <= t.r * 0.7 + s) { arrive(g, u, t); u.dead = true; continue; }
+    u.x += dx / d * s;
+    u.y += dy / d * s;
+  }
+
+  collide(g);
+  shoot(g, dt);
+  g.units = g.units.filter(u => !u.dead);
+
+  // Игрок выбывает, когда захвачено его главное здание (nodes[p])
+  for (let p = 0; p < g.players; p++) {
+    if (g.alive[p] && g.nodes[p].owner !== p) eliminate(g, p);
+  }
+  const alive = g.alive.map((a, p) => (a ? p : -1)).filter(p => p >= 0);
+  if (alive.length === 1) g.over = alive[0];
+  else if (mode === 'solo' && !g.alive[0]) g.over = g.nodes[0].owner;   // игрок проиграл, боты ещё воюют
+  if (g.over !== null) onGameOver(g.over);
+}
+
+// Выбывший игрок: его башни становятся нейтральными, войска в пути исчезают
+function eliminate(g, p) {
+  g.alive[p] = false;
+  for (const n of g.nodes) if (n.owner === p) { n.owner = -1; n.route = -1; }
+  g.units = g.units.filter(u => u.owner !== p);
+  emit([2, p]);
+  onEliminated(p);
+}
+
+function onEliminated(p) {
+  if (p !== me && game && game.over === null) toast(`${TEAM_NAME[p]} выбывают!`);
+}
+
+// ---------------------------------------------------------------------
+//  Бот для тренировки
+// ---------------------------------------------------------------------
+// Бот играет по тем же правилам, что и человек: только постоянными путями
+// (без разовых бросков) и не больше двух действий за раз.
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+// Сколько войск нужно, чтобы взять башню потоком из k путей
+function attackNeed(g, t, d, power, k) {
+  const str = CFG.strength[t.def];
+  const stream = power / (CFG.flow * k);                  // сколько секунд идёт поток
+  let need = t.units * str + effRate(g, t) * str * (d / CFG.speed + stream) + 2;
+  if (t.def > 0) need += CFG.shootRate[t.def] * (stream + CFG.shootRange[t.def] / CFG.speed);
+  return need;
+}
+
+function botStep(g, dt, bot) {
+  const P = bot.p, D = DIFFS[bot.diff];
+  if (g.over !== null || g.countdown > 0 || !g.alive[P]) return;
+  bot.timer -= dt;
+  if (bot.timer > 0) return;
+  bot.timer = D.react[0] + Math.random() * (D.react[1] - D.react[0]);   // «время реакции», как у человека
+  const mine = g.nodes.filter(n => n.owner === P);
+  if (!mine.length) return;
+  const isFeeder = n => n.type === 'tower' && n.prod > 0;
+  const isEnemy = o => o >= 0 && o !== P;
+  let actions = D.actions;
+
+  const incoming = new Map(), ours = new Map();   // сколько врагов / наших идёт к каждой башне
+  for (const u of g.units) {
+    const m = u.owner === P ? ours : incoming;
+    m.set(u.target, (m.get(u.target) || 0) + 1);
+  }
+  for (const n of mine) if (n.route >= 0) ours.set(n.route, (ours.get(n.route) || 0) + n.units);
+
+  // 1) Защита: к башне идёт больше врагов, чем она выдержит (лёгкий бот замечает не всегда)
+  if (Math.random() < D.defend) for (const n of mine) {
+    const inc = incoming.get(n.id) || 0;
+    if (inc === 0 || inc < n.units * CFG.strength[n.def]) continue;
+    if (n.route >= 0) { clearRoute(g, P, n.id); actions--; }     // перестаём её опустошать
+    const helper = mine
+      .filter(h => h !== n && h.units >= 8 && h.route !== n.id && dist(h, n) < 420)
+      .sort((a, b) => dist(a, n) - dist(b, n))[0];
+    if (helper && actions > 0) { setRoute(g, P, [helper.id], n.id); actions--; }
+    break;
+  }
+  if (actions <= 0) return;
+
+  // «Фронт» — насколько башня близка к чужим (нейтральным или вражеским)
+  const others = g.nodes.filter(n => n.owner !== P);
+  const gap = n => Math.min(...others.map(o => dist(n, o)));
+
+  // 2) Убираем ненужные пути:
+  //    - к своей башне: переброска закончена (источник пуст; казармы кормят постоянно)
+  //      или путь ведёт не к фронту, а в тыл (фронт с тех пор сместился);
+  //    - к чужой: источник опустел, а всех наших войск в пути на цель уже не хватит
+  for (const n of mine) {
+    if (n.route < 0) continue;
+    const t = g.nodes[n.route];
+    const useless = t.owner === P
+      ? (!isFeeder(n) && n.units < 2) || (gap(t) >= gap(n) - 40 && !(incoming.get(t.id) > 0))
+      : n.units < 2 && t.units * CFG.strength[t.def] > (ours.get(t.id) || 0) + 10;
+    if (useless) { clearRoute(g, P, n.id); if (--actions <= 0) return; }
+  }
+
+  // 3) Улучшения
+  const enemyBases = g.nodes.filter(n => n.type === 'base' && isEnemy(n.owner));
+  const nearEnemyBase = n => enemyBases.some(b => dist(n, b) < 450);
+  if (Math.random() < D.upgrade) for (const n of mine) {
+    let b = null;
+    if (n.type === 'base') {
+      if (n.prod < 3 && n.units > CFG.cost[n.prod] + D.eco) b = 'prod';
+      else if (n.def < 2 && n.prod >= 2 && n.units > CFG.cost[n.def] + D.eco + 10) b = 'def';
+    } else if (n.prod === 0 && n.def === 0) {
+      if (n.units > CFG.cost[0] + 5) b = nearEnemyBase(n) ? 'def' : 'prod';
+    } else {
+      const k = n.prod > 0 ? 'prod' : 'def';
+      if (n[k] < 3 && n.units > CFG.cost[n[k]] + 10 && Math.random() < 0.4) b = k;
+    }
+    if (b && upgrade(g, P, n.id, b)) { if (--actions <= 0) return; break; }
+  }
+
+  // 4) Атака: цель, которую ближайшие свободные башни наверняка возьмут потоком.
+  //    Берём столько башен, сколько нужно, а не все подряд.
+  const free = mine.filter(n => n.route < 0 && n.units >= 6);
+  let best = null, bestSrc = null, bestScore = -Infinity;
+  for (const t of g.nodes) {
+    if (t.owner === P) continue;
+    const isBase = t.type === 'base';        // на главное здание собираем большую атаку
+    const cand = free.filter(n => dist(n, t) < (isBase ? 750 : 520))
+      .sort((a, b) => dist(a, t) - dist(b, t)).slice(0, isBase ? 6 : 3);
+    let power = 0, used = [], ok = false;
+    for (const n of cand) {
+      used.push(n);
+      power += Math.floor(n.units);
+      if (power >= attackNeed(g, t, dist(n, t), power, used.length) * D.margin) { ok = true; break; }
+    }
+    if (!ok) continue;
+    const score = -attackNeed(g, t, dist(used[0], t), power, used.length) - dist(used[0], t) * 0.05
+      + (t.type === 'base' ? 50 : 0) + (isEnemy(t.owner) ? 6 : 0) + (t.booster >= 0 ? 15 : 0)
+      + (t.owner === 0 ? D.humanBonus : isEnemy(t.owner) ? D.botPenalty : 0);
+    if (score > bestScore) { bestScore = score; best = t; bestSrc = used; }
+  }
+  if (best) {
+    setRoute(g, P, bestSrc.map(n => n.id), best.id);
+    if (--actions <= 0) return;
+  }
+
+  // 5) Тыл кормит передовую: прокачанные казармы и переполненные башни
+  //    перегоняют войска к своей башне, которая ближе всех к чужим
+  if (!others.length) return;
+  const front = mine.reduce((a, b) => (gap(a) < gap(b) ? a : b));
+  for (const n of mine) {
+    if (n.route >= 0 || n === front) continue;
+    const rich = n.units >= capOf(n) * 0.8;
+    if (!rich && !(isFeeder(n) && n.prod >= 2)) continue;
+    if (gap(n) - gap(front) < 100) continue;
+    setRoute(g, P, [n.id], front.id);
+    if (--actions <= 0) return;
+  }
+}
+
+// =====================================================================
+//  Сеть (PeerJS / WebRTC). Хост ведёт симуляцию, гость шлёт команды.
+// =====================================================================
+function randCode() {
+  let s = '';
+  for (let i = 0; i < 5; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  return s;
+}
+
+function setStatus(el, text, cls) {
+  el.textContent = text;
+  el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+function peerAvailable() {
+  if (typeof Peer === 'undefined') {
+    setStatus($('hostStatus'), 'Не удалось загрузить сетевой модуль. Проверьте интернет.', 'err');
+    setStatus($('joinStatus'), 'Не удалось загрузить сетевой модуль. Проверьте интернет.', 'err');
+    return false;
+  }
+  return true;
+}
+
+function peerErrorText(err) {
+  switch (err.type) {
+    case 'peer-unavailable': return 'Комната не найдена. Проверьте код.';
+    case 'network': case 'server-error': case 'socket-error': case 'socket-closed':
+      return 'Нет связи с сервером соединений. Проверьте интернет.';
+    case 'browser-incompatible': return 'Браузер не поддерживает WebRTC. Используйте Chrome, Edge или Firefox.';
+    default: return 'Ошибка сети: ' + err.type;
+  }
+}
+
+function hostGame() {
+  if (!peerAvailable()) return;
+  $('hostBtn').disabled = true;
+  $('joinBtn').disabled = true;
+  setStatus($('hostStatus'), 'Подключение к серверу…');
+  const code = randCode();
+  const p = peer = new Peer(PEER_PREFIX + code, { debug: 0 });
+  p.on('open', () => {
+    if (p !== peer) return;
+    $('hostArea').innerHTML = `
+      <div class="code-box">
+        <span class="code">${code}</span>
+        <span style="display:flex;gap:6px">
+          <button id="copyBtn">Копировать</button>
+          ${window.AndroidApp ? '<button id="shareBtn">Поделиться</button>' : ''}
+        </span>
+      </div>`;
+    $('copyBtn').onclick = () => {
+      if (window.AndroidApp) { AndroidApp.copy(code); $('copyBtn').textContent = 'Скопировано'; return; }
+      navigator.clipboard?.writeText(code).then(
+        () => { $('copyBtn').textContent = 'Скопировано'; },
+        () => { $('copyBtn').textContent = 'Не вышло'; });
+    };
+    if ($('shareBtn')) $('shareBtn').onclick = () => AndroidApp.share(`Заходи в «Битву башен»! Код комнаты: ${code}`);
+    setStatus($('hostStatus'), 'Ждём соперника… Отправьте ему этот код.', 'ok');
+  });
+  p.on('connection', c => {
+    if (p !== peer) return;
+    if (conn) {                            // комната уже занята
+      c.on('open', () => { c.send({ t: 'full' }); setTimeout(() => c.close(), 300); });
+      return;
+    }
+    conn = c;
+    c.on('open', () => { if (c === conn) { mode = 'host'; me = 0; startMatch(); } });
+    c.on('data', d => { if (c === conn) onHostData(d); });
+    c.on('close', () => { if (c === conn) onDisconnect(); });
+    c.on('error', () => { if (c === conn) onDisconnect(); });
+  });
+  p.on('error', err => {
+    if (p !== peer) return;
+    if (err.type === 'unavailable-id') { p.destroy(); hostGame(); return; }
+    if (mode === 'host' && conn) return;
+    setStatus($('hostStatus'), peerErrorText(err), 'err');
+    $('hostBtn').disabled = false;
+    $('joinBtn').disabled = false;
+  });
+}
+
+function joinGame() {
+  if (!peerAvailable()) return;
+  const code = $('codeInput').value.trim().toUpperCase();
+  if (code.length !== 5) { setStatus($('joinStatus'), 'Код состоит из 5 символов.', 'err'); return; }
+  $('joinBtn').disabled = true;
+  $('hostBtn').disabled = true;
+  setStatus($('joinStatus'), 'Подключение…');
+  const p = peer = new Peer({ debug: 0 });
+  p.on('open', () => {
+    if (p !== peer) return;
+    const c = conn = p.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
+    c.on('open', () => { if (c === conn) setStatus($('joinStatus'), 'Подключено! Ждём начала…', 'ok'); });
+    c.on('data', d => { if (c === conn) onGuestData(d); });
+    c.on('close', () => { if (c === conn) onDisconnect(); });
+    c.on('error', () => { if (c === conn) onDisconnect(); });
+  });
+  p.on('error', err => {
+    if (p !== peer || mode === 'guest') return;
+    setStatus($('joinStatus'), peerErrorText(err), 'err');
+    $('joinBtn').disabled = false;
+    $('hostBtn').disabled = false;
+    p.destroy(); peer = null; conn = null;
+  });
+}
+
+function onHostData(d) {
+  if (!d || !game) return;
+  if (d.t === 'route' && Array.isArray(d.from)) setRoute(game, 1, d.from.map(Number), +d.to);
+  else if (d.t === 'unroute' && Array.isArray(d.ids)) for (const id of d.ids) clearRoute(game, 1, +id);
+  else if (d.t === 'up') upgrade(game, 1, +d.id, d.b);
+  else if (d.t === 'rematch' && game.over !== null) startMatch();
+  else if (d.t === 'leave') onOpponentLeft();
+}
+
+function onGuestData(d) {
+  if (!d) return;
+  if (d.t === 'full') {
+    setStatus($('joinStatus'), 'В этой комнате уже идёт игра.', 'err');
+    return;
+  }
+  if (d.t === 'leave') { onOpponentLeft(); return; }
+  if (d.t === 'init') {
+    mode = 'guest'; me = 1;
+    game = {
+      nodes: d.nodes.map((n, i) => ({ id: i, x: n[0], y: n[1], r: n[2], type: n[3] ? 'base' : 'tower', owner: -1, units: 0, prod: 0, def: 0, route: -1, booster: -1 })),
+      units: [], countdown: 3, over: null, players: 2, alive: [true, true], bots: [],
+      time: 0, boostUntil: [0, 0], buffs: [{}, {}],   // у гостя: остаток секунд ускорения и бустеров (из снимка)
+    };
+    fx = []; selected.clear();
+    enterGameUI();
+    return;
+  }
+  if (d.t === 's' && game) applySnapshot(d);
+}
+
+function snapshot(g) {
+  const n = [];
+  for (const x of g.nodes) n.push(x.owner, Math.round(x.units * 10), x.prod, x.def, x.route, x.booster);
+  const u = [];
+  for (const x of g.units) if (x.delay <= 0) u.push(Math.round(x.x), Math.round(x.y), x.owner, x.target);
+  const left = t => Math.max(0, +(t - g.time).toFixed(1));
+  const b = g.boostUntil.map(left);
+  const bf = g.buffs.map(o => { const r = {}; for (const k in o) r[k] = left(o[k]); return r; });
+  const s = { t: 's', n, u, e: netEvents, cd: g.countdown, over: g.over, b, bf };
+  netEvents = [];
+  return s;
+}
+
+function applySnapshot(s) {
+  const g = game;
+  for (let i = 0; i < g.nodes.length; i++) {
+    const n = g.nodes[i];
+    const k = i * 6;
+    n.owner = s.n[k]; n.units = s.n[k + 1] / 10; n.prod = s.n[k + 2]; n.def = s.n[k + 3]; n.route = s.n[k + 4];
+    n.booster = s.n[k + 5];
+  }
+  g.units = [];
+  for (let i = 0; i < s.u.length; i += 4) g.units.push({ x: s.u[i], y: s.u[i + 1], owner: s.u[i + 2], target: s.u[i + 3] });
+  for (const ev of s.e) {
+    if (ev[0] === 2) { g.alive[ev[1]] = false; onEliminated(ev[1]); }
+    else fx.push({ a: ev, t: 0 });
+    if (ev[0] === 3) onBooster(ev[3], ev[4]);
+  }
+  g.countdown = s.cd;
+  if (s.b) g.boostUntil = s.b;             // g.time у гостя всегда 0, так что это остаток ускорения
+  if (s.bf) g.buffs = s.bf;                // и остаток бустеров
+  lastSnapshotAt = performance.now();
+  if (s.over !== null && g.over === null) { g.over = s.over; onGameOver(s.over); }
+  if (s.over === null && g.over !== null) { g.over = null; hideOverlay(); }
+}
+
+function onDisconnect() {
+  if (!mode || mode === 'solo') return;
+  if ($('overlay').dataset.kind === 'disc') return;
+  showOverlay('Связь потеряна', 'Соперник отключился или пропал интернет.', false, 'disc');
+}
+
+function onOpponentLeft() {
+  closeLeaveDialog();
+  showOverlay('Соперник вышел', 'Соперник покинул игру и вернулся в меню.', false, 'disc');
+}
+
+// Выход в меню без перезагрузки страницы: сообщаем сопернику, закрываем
+// соединение и сбрасываем состояние игры и лобби.
+function leaveGame() {
+  const oldPeer = peer, oldConn = conn;
+  if (mode !== 'solo' && oldConn && oldConn.open) {
+    try { oldConn.send({ t: 'leave' }); } catch (e) {}
+  }
+  peer = null; conn = null;              // события старого соединения больше не обрабатываются
+  setTimeout(() => {                     // даём сообщению «leave» уйти
+    try { oldConn && oldConn.close(); } catch (e) {}
+    try { oldPeer && oldPeer.destroy(); } catch (e) {}
+  }, 300);
+
+  mode = null; me = 0; game = null;
+  fx = []; netEvents = []; selected.clear();
+  endPress(); hoverId = -1; hoverRoute = -1;
+  document.body.classList.remove('ingame');
+  canvas.style.cursor = '';
+
+  closeLeaveDialog();
+  hideOverlay();
+  $('helpModal').classList.add('hidden');
+  $('hud').classList.add('hidden');
+  $('panel').classList.add('hidden');
+  resetLobby();
+  $('lobby').classList.remove('hidden');
+}
+
+const HOST_AREA_HTML = $('hostArea').innerHTML;
+function resetLobby() {
+  $('hostArea').innerHTML = HOST_AREA_HTML;
+  $('hostBtn').onclick = hostGame;
+  $('hostBtn').disabled = false;
+  $('joinBtn').disabled = false;
+  setStatus($('hostStatus'), '');
+  setStatus($('joinStatus'), '');
+  renderLevelCard();                     // мог открыться новый уровень
+}
+
+function openLeaveDialog() {
+  if (!game) return;
+  $('leaveText').textContent = mode === 'solo'
+    ? 'Вы вернётесь в главное меню. Игра на паузе.'
+    : 'Вы вернётесь в главное меню, а соперник увидит, что вы вышли.';
+  $('leaveModal').classList.remove('hidden');
+}
+function closeLeaveDialog() { $('leaveModal').classList.add('hidden'); }
+const paused = () => mode === 'solo' && !$('leaveModal').classList.contains('hidden');
+
+// =====================================================================
+//  Запуск матча
+// =====================================================================
+function startMatch() {
+  if (mode === 'solo') {
+    const c = matchCfg;
+    const lp = c.kind === 'level' ? levelParams(c.level) : { enemies: c.enemies, diff: c.diff, towers: 10 + 2 * c.enemies, bonus: 0 };
+    const towers = lp.towers + Math.floor(Math.random() * 4) - 1;        // каждый раз немного по-разному
+    game = newGame({ players: lp.enemies + 1, towers, bonus: lp.bonus, diffs: Array(lp.enemies).fill(lp.diff) });
+  } else {
+    game = newGame({ duel: true });
+  }
+  fx = []; netEvents = []; selected.clear();
+  if (mode === 'host' && conn) {
+    conn.send({ t: 'init', nodes: game.nodes.map(n => [n.x, n.y, n.r, n.type === 'base' ? 1 : 0]) });
+  }
+  enterGameUI();
+}
+
+// ---------- Прогресс уровней (хранится в браузере / приложении) ----------
+// Если хранилище недоступно, прогресс живёт хотя бы до закрытия страницы
+const LEVEL_KEY = 'bitva-bashen-max-level';
+let memMaxLevel = 1;
+function loadMaxLevel() {
+  let stored = 1;
+  try { stored = parseInt(localStorage.getItem(LEVEL_KEY), 10) || 1; } catch (e) {}
+  return Math.max(1, stored, memMaxLevel);
+}
+function saveMaxLevel(n) {
+  if (n <= loadMaxLevel()) return;
+  memMaxLevel = n;
+  try { localStorage.setItem(LEVEL_KEY, String(n)); } catch (e) {}
+  if (tg && tg.isVersionAtLeast('6.9')) tg.CloudStorage.setItem(LEVEL_KEY, String(n));   // облако Telegram
+}
+
+function enterGameUI() {
+  document.body.classList.add('ingame');
+  $('lobby').classList.add('hidden');
+  $('hud').classList.remove('hidden');
+  hideOverlay();
+}
+
+function onGameOver(winner) {
+  const win = winner === me;
+  const level = mode === 'solo' && matchCfg.kind === 'level' ? matchCfg.level : 0;
+  let text = win
+    ? (game.players > 2 ? 'Все соперники повержены.' : 'Главное здание соперника захвачено.')
+    : 'Ваше главное здание захвачено.';
+  if (level && win) { saveMaxLevel(level + 1); text = `Уровень ${level} пройден! ` + text; }
+  showOverlay(win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ', text, true, 'over');
+  tgHaptic(win ? 'success' : 'error');
+  $('ovTitle').style.color = win ? '#5fe39a' : 'var(--red)';
+  $('nextBtn').classList.toggle('hidden', !(level && win));
+  if (mode === 'solo') $('rematchBtn').textContent = 'Ещё раз';
+}
+
+function showOverlay(title, text, canRematch, kind) {
+  $('ovTitle').textContent = title;
+  $('ovTitle').style.color = '';
+  $('ovText').textContent = text;
+  $('rematchBtn').classList.toggle('hidden', !canRematch);
+  $('rematchBtn').disabled = false;
+  $('rematchBtn').textContent = 'Реванш';
+  $('nextBtn').classList.add('hidden');
+  $('overlay').dataset.kind = kind;
+  $('overlay').classList.remove('hidden');
+}
+function hideOverlay() {
+  $('overlay').classList.add('hidden');
+  $('overlay').dataset.kind = '';
+}
+
+// =====================================================================
+//  Команды игрока
+// =====================================================================
+function net(msg) { if (conn && conn.open) conn.send(msg); }
+
+// Проложить путь. Если у всех выбранных башен уже есть этот путь, убрать его.
+function cmdRoute(from, to) {
+  from = from.filter(id => id !== to && game.nodes[id].owner === me);
+  if (!from.length) return;
+  if (from.every(id => game.nodes[id].route === to)) { cmdUnroute(from); return; }
+  if (mode === 'guest') net({ t: 'route', from, to });
+  else setRoute(game, me, from, to);
+}
+
+function cmdUnroute(ids) {
+  ids = ids.filter(id => game.nodes[id].owner === me && game.nodes[id].route >= 0);
+  if (!ids.length) return;
+  if (mode === 'guest') net({ t: 'unroute', ids });
+  else for (const id of ids) clearRoute(game, me, id);
+  for (const id of ids) game.nodes[id].route = -1;   // сразу прячем линию, не дожидаясь хоста
+}
+
+// Отрезок пути от края башни-источника до края цели (в координатах карты)
+function routeSeg(n) {
+  const t = game.nodes[n.route];
+  const ang = Math.atan2(t.y - n.y, t.x - n.x), c = Math.cos(ang), s = Math.sin(ang);
+  return [n.x + c * (n.r + 4), n.y + s * (n.r + 4), t.x - c * (t.r + 8), t.y - s * (t.r + 8)];
+}
+
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy;
+  const k = l ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)) : 0;
+  return Math.hypot(px - ax - k * dx, py - ay - k * dy);
+}
+
+// Свой путь под курсором (для удаления кликом)
+function routeAt(p, tol) {
+  let best = -1, bd = tol;
+  for (const n of game.nodes) {
+    if (n.owner !== me || n.route < 0) continue;
+    const d = segDist(p.x, p.y, ...routeSeg(n));
+    if (d < bd) { bd = d; best = n.id; }
+  }
+  return best;
+}
+function cmdUpgrade(id, b) {
+  const n = game.nodes[id];
+  if (!n || n.owner !== me) return;
+  if (!canBranch(n, b)) { toast(n.def > 0 ? 'Это форт: казарму построить нельзя' : 'Это казарма: форт построить нельзя'); return; }
+  if (n[b] >= 3) { toast('Максимальный уровень'); return; }
+  if (n.units < CFG.cost[n[b]]) { toast(`Нужно ${CFG.cost[n[b]]} войск в этой башне`); return; }
+  if (mode === 'guest') conn?.open && conn.send({ t: 'up', id, b });
+  else upgrade(game, me, id, b);
+}
+
+let toastTimer = 0;
+function toast(text) {
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.remove('hidden');
+  t.style.opacity = 1;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.opacity = 0; }, 1600);
+}
+
+// =====================================================================
+//  Ввод
+// =====================================================================
+let dpr = 1, scale = 1, offX = 0, offY = 0;
+const flip = () => mode === 'guest';           // гость видит свою базу слева
+const X = x => (flip() ? W - x : x);
+
+// На телефоне в горизонтальном положении поле слева, панели в колонке справа
+let sideMode = false;
+let safe = { t: 0, r: 0, b: 0, l: 0 };       // безопасные отступы (Telegram на весь экран), в CSS-пикселях
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(innerWidth * dpr);
+  canvas.height = Math.round(innerHeight * dpr);
+  const vw = innerWidth - safe.l - safe.r, vh = innerHeight - safe.t - safe.b;
+  sideMode = vw > vh && vh < 600;
+  document.body.classList.toggle('side', sideMode);
+  if (sideMode) {
+    const sideW = Math.round(Math.min(250, Math.max(180, vw * 0.26)));
+    document.body.style.setProperty('--side', sideW + 'px');
+    const availW = vw - sideW - 24, availH = vh - 16;
+    scale = Math.min(availW / W, availH / H);
+    offX = safe.l + 8 + (availW - W * scale) / 2;
+    offY = safe.t + 8 + (availH - H * scale) / 2;
+  } else {
+    const top = 60, bottom = 104, side = 16;   // снизу место под панель улучшений
+    scale = Math.min((vw - side * 2) / W, (vh - top - bottom) / H);
+    offX = safe.l + (vw - W * scale) / 2;
+    offY = safe.t + top + (vh - top - bottom - H * scale) / 2;
+  }
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Размер шрифта в координатах карты, но не мельче minPx настоящих пикселей
+const fontPx = (logical, minPx) => Math.max(logical, minPx / scale);
+
+
+function toLogical(e) {
+  let x = (e.clientX - offX) / scale;
+  const y = (e.clientY - offY) / scale;
+  if (flip()) x = W - x;
+  return { x, y };
+}
+function pick(p, touch) {
+  if (!game) return null;
+  const pad = touch ? 22 : 10;                 // пальцем попасть сложнее
+  let best = null, bd = Infinity;
+  for (const n of game.nodes) {
+    const d = Math.hypot(n.x - p.x, n.y - p.y);
+    if (d < n.r + pad && d < bd) { bd = d; best = n; }
+  }
+  return best;
+}
+const playing = () => game && game.over === null && $('overlay').classList.contains('hidden')
+  && $('leaveModal').classList.contains('hidden');
+
+function selectAll() {
+  selected.clear();
+  for (const n of game.nodes) if (n.owner === me) selected.add(n.id);
+}
+
+// Управление мышью и пальцем:
+//   нажать свою башню — выбрать; протянуть от неё к цели — проложить путь;
+//   нажать чужую башню при выбранных — проложить путь; нажать линию пути — убрать.
+//   Мышь: Shift+клик — добавить к выбору. Палец: долгое нажатие на свою башню — добавить к выбору.
+let press = null;
+const LONG_PRESS_MS = 450;
+
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('pointerdown', e => {
+  if (!playing() || press) return;
+  const touch = e.pointerType !== 'mouse';
+  const p = toLogical(e);
+  mouse = p;
+  const n = pick(p, touch);
+  hoverId = n ? n.id : -1;
+  if (e.button !== 0) return;
+  if (!n) {
+    const r = routeAt(p, touch ? 20 : 10);
+    if (r >= 0) cmdUnroute([r]);
+    else selected.clear();
+    return;
+  }
+  const own = n.owner === me;
+  press = { from: n.id, own, touch, sx: e.clientX, sy: e.clientY, moved: false, shift: e.shiftKey, done: false, timer: 0 };
+  if (own && !touch) {
+    if (e.shiftKey) {
+      if (selected.has(n.id)) selected.delete(n.id); else selected.add(n.id);
+    } else if (!selected.has(n.id)) {
+      selected.clear(); selected.add(n.id);
+    }
+  }
+  if (touch && own) {
+    const pr = press;
+    pr.timer = setTimeout(() => {
+      if (press !== pr || pr.moved || !playing()) return;
+      if (selected.has(n.id)) selected.delete(n.id); else selected.add(n.id);
+      pr.done = true;
+      navigator.vibrate?.(25);
+    }, LONG_PRESS_MS);
+  }
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  mouse = toLogical(e);
+  const touch = e.pointerType !== 'mouse';
+  if (press && !press.moved && !press.done &&
+      Math.hypot(e.clientX - press.sx, e.clientY - press.sy) > (press.touch ? 14 : 8)) {
+    press.moved = true;
+    clearTimeout(press.timer);
+    if (press.own) {
+      if (!selected.has(press.from)) { selected.clear(); selected.add(press.from); }
+      drag = press;                              // тянем путь от своей башни
+    }
+  }
+  if (touch && !press) return;                   // у пальца нет «наведения»
+  const n = pick(mouse, touch);
+  hoverId = n ? n.id : -1;
+  hoverRoute = !n && game && !drag && !touch ? routeAt(mouse, 10) : -1;
+  canvas.style.cursor = hoverRoute >= 0 ? 'pointer' : '';
+});
+function endPress() {
+  if (press) clearTimeout(press.timer);
+  press = null; drag = null;
+}
+canvas.addEventListener('pointercancel', endPress);
+canvas.addEventListener('pointerup', e => {
+  if (!press) return;
+  const pr = press;
+  endPress();
+  if (pr.touch) hoverId = -1;
+  if (pr.done || !playing()) return;
+  const n = pick(toLogical(e), pr.touch);
+  if (pr.moved) {
+    if (pr.own && n && n.id !== pr.from) cmdRoute([...selected], n.id);
+    return;
+  }
+  if (pr.own) {
+    if (pr.touch && selected.size === 1 && selected.has(pr.from)) selected.clear();  // повторное касание снимает выбор
+    else if (!pr.shift) { selected.clear(); selected.add(pr.from); }
+  } else if (selected.size) {
+    cmdRoute([...selected], pr.from);
+  }
+});
+
+window.addEventListener('keydown', e => {
+  if (!game || document.activeElement === $('codeInput')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'escape') {
+    if (!$('leaveModal').classList.contains('hidden')) closeLeaveDialog();
+    else if (!$('helpModal').classList.contains('hidden')) $('helpModal').classList.add('hidden');
+    else if (selected.size) selected.clear();
+    else if ($('overlay').classList.contains('hidden')) openLeaveDialog();
+    return;
+  }
+  if (!playing()) return;
+  if (['x', 'ч', 'delete', 'backspace'].includes(k)) cmdUnroute([...selected]);
+  else if (k === 'a' || k === 'ф') selectAll();
+  else if ((k === 'q' || k === 'й') && selected.size === 1) cmdUpgrade([...selected][0], 'prod');
+  else if ((k === 'e' || k === 'у') && selected.size === 1) cmdUpgrade([...selected][0], 'def');
+});
+
+$('upProd').onclick = () => selected.size === 1 && cmdUpgrade([...selected][0], 'prod');
+$('upDef').onclick = () => selected.size === 1 && cmdUpgrade([...selected][0], 'def');
+$('unrouteBtn').onclick = () => cmdUnroute([...selected]);
+
+// =====================================================================
+//  Отрисовка
+// =====================================================================
+function circle(x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); }
+
+function alpha(hex, a) {
+  const v = parseInt(hex.slice(1), 16);
+  return `rgba(${v >> 16},${(v >> 8) & 255},${v & 255},${a})`;
+}
+
+function drawArrow(x1, y1, x2, y2, color, width, dashed) {
+  const ang = Math.atan2(y2 - y1, x2 - x1);
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width;
+  ctx.setLineDash(dashed ? [8, 7] : []);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - Math.cos(ang) * 10, y2 - Math.sin(ang) * 10); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - Math.cos(ang - 0.45) * 16, y2 - Math.sin(ang - 0.45) * 16);
+  ctx.lineTo(x2 - Math.cos(ang + 0.45) * 16, y2 - Math.sin(ang + 0.45) * 16);
+  ctx.closePath(); ctx.fill();
+}
+
+let lastFrame = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - lastFrame) / 1000);
+  lastFrame = now;
+  requestAnimationFrame(frame);
+  syncTgBack();
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#0b0f19';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (!game) return;
+
+  // Гость: плавно двигаем войска между снимками состояния
+  if (mode === 'guest' && game.countdown <= 0 && game.over === null) {
+    const s = CFG.speed * dt;
+    for (const u of game.units) {
+      const t = game.nodes[u.target];
+      const dx = t.x - u.x, dy = t.y - u.y, d = Math.hypot(dx, dy);
+      if (d > t.r * 0.7 + s) { u.x += dx / d * s; u.y += dy / d * s; }
+    }
+  }
+
+  for (const id of selected) if (game.nodes[id].owner !== me) selected.delete(id);
+
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * offX, dpr * offY);
+  drawBoard();
+  drawRanges();
+  drawRoutes(now / 1000);
+  drawOrders();
+  drawUnits(now / 1000);
+  drawFx(dt);
+  drawNodes(now / 1000);
+  drawRouteHover();
+  drawCountdown();
+  updateHud();
+  updatePanel();
+}
+
+function drawBoard() {
+  const g = ctx.createRadialGradient(W / 2, H / 2, 50, W / 2, H / 2, W * 0.7);
+  g.addColorStop(0, '#141c30');
+  g.addColorStop(1, '#0e1322');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.roundRect(0, 0, W, H, 18); ctx.fill();
+  ctx.strokeStyle = '#222c47'; ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.fillStyle = '#1e2740';
+  for (let x = 40; x < W; x += 40) for (let y = 40; y < H; y += 40) ctx.fillRect(x - 1, y - 1, 2, 2);
+
+  // лёгкая подсветка вокруг каждой главной базы её цветом
+  ctx.save();
+  ctx.beginPath(); ctx.roundRect(0, 0, W, H, 18); ctx.clip();
+  for (const n of game.nodes) {
+    if (n.type !== 'base' || n.owner < 0) continue;
+    const c = COL[n.owner].main, x = X(n.x);
+    const gr = ctx.createRadialGradient(x, n.y, 0, x, n.y, 420);
+    gr.addColorStop(0, alpha(c, 0.08)); gr.addColorStop(1, alpha(c, 0));
+    ctx.fillStyle = gr;
+    ctx.fillRect(x - 420, n.y - 420, 840, 840);
+  }
+  ctx.restore();
+}
+
+function drawRanges() {
+  for (const n of game.nodes) {
+    if (n.owner < 0 || n.def === 0) continue;
+    const c = COL[n.owner];
+    const R = CFG.shootRange[n.def];
+    circle(X(n.x), n.y, R);
+    ctx.fillStyle = alpha(c.main, 0.045); ctx.fill();
+    ctx.setLineDash([4, 6]); ctx.lineWidth = 1.2;
+    ctx.strokeStyle = alpha(c.main, 0.35); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function drawRoutes(t) {
+  for (const n of game.nodes) {
+    if (n.route < 0 || n.owner < 0) continue;
+    const c = COL[n.owner];
+    const [ax, ay, bx, by] = routeSeg(n);
+    const x1 = X(ax), x2 = X(bx);
+    const hot = n.id === hoverRoute;
+
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = alpha(c.main, hot ? 0.35 : 0.18);
+    ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.moveTo(x1, ay); ctx.lineTo(x2, by); ctx.stroke();
+
+    // «бегущие» штрихи показывают направление движения войск
+    ctx.setLineDash([10, 12]);
+    ctx.lineDashOffset = -t * 40;
+    ctx.strokeStyle = alpha(c.light, hot ? 0.95 : 0.6);
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x1, ay); ctx.lineTo(x2, by); ctx.stroke();
+    ctx.setLineDash([]); ctx.lineDashOffset = 0; ctx.lineCap = 'butt';
+
+    const ang = Math.atan2(by - ay, x2 - x1);
+    ctx.fillStyle = alpha(c.light, hot ? 0.95 : 0.7);
+    ctx.beginPath();
+    ctx.moveTo(x2 + Math.cos(ang) * 4, by + Math.sin(ang) * 4);
+    ctx.lineTo(x2 - Math.cos(ang - 0.5) * 12, by - Math.sin(ang - 0.5) * 12);
+    ctx.lineTo(x2 - Math.cos(ang + 0.5) * 12, by - Math.sin(ang + 0.5) * 12);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
+// Крестик посередине пути под курсором: клик уберёт путь
+function drawRouteHover() {
+  if (hoverRoute < 0 || !playing()) return;
+  const n = game.nodes[hoverRoute];
+  if (n.route < 0 || n.owner !== me) return;
+  const [ax, ay, bx, by] = routeSeg(n);
+  const mx = X((ax + bx) / 2), my = (ay + by) / 2;
+  circle(mx, my, 11);
+  ctx.fillStyle = '#0b0f19'; ctx.fill();
+  ctx.strokeStyle = '#ff4d5e'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(mx - 4.5, my - 4.5); ctx.lineTo(mx + 4.5, my + 4.5);
+  ctx.moveTo(mx + 4.5, my - 4.5); ctx.lineTo(mx - 4.5, my + 4.5);
+  ctx.stroke();
+  ctx.font = `600 ${fontPx(12, 10)}px Rubik, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffb3ba';
+  ctx.fillText('убрать путь', mx, my + 11 + fontPx(12, 10));
+}
+
+function drawOrders() {
+  if (!selected.size) return;
+  const c = COL[me];
+  let tx, ty, target = null;
+  if (drag && drag.moved) {
+    target = hoverId >= 0 ? game.nodes[hoverId] : null;
+    tx = target ? X(target.x) : X(mouse.x); ty = target ? target.y : mouse.y;
+  } else if (hoverId >= 0 && !selected.has(hoverId)) {
+    target = game.nodes[hoverId];
+    tx = X(target.x); ty = target.y;
+  } else return;
+
+  let count = 0, existing = 0;
+  for (const id of selected) {
+    const n = game.nodes[id];
+    if (target && n.id === target.id) continue;
+    count++;
+    if (target && n.route === target.id) existing++;
+    const ang = Math.atan2(ty - n.y, tx - X(n.x));
+    const ex = target ? tx - Math.cos(ang) * (target.r + 6) : tx;
+    const ey = target ? ty - Math.sin(ang) * (target.r + 6) : ty;
+    drawArrow(X(n.x) + Math.cos(ang) * (n.r + 4), n.y + Math.sin(ang) * (n.r + 4), ex, ey,
+      alpha(c.light, drag ? 0.85 : 0.4), drag ? 3 : 2, !drag);
+  }
+  if (target && count > 0) {
+    const f = fontPx(13, 11);
+    ctx.font = `700 ${f}px Rubik, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const removing = existing === count;
+    const label = removing ? '✕ убрать путь' : '➜ проложить путь';
+    const w = ctx.measureText(label).width + f * 1.2, h = f * 1.7;
+    const ly = ty - target.r - 14 - h / 2;
+    ctx.fillStyle = '#0b0f19dd';
+    ctx.beginPath(); ctx.roundRect(tx - w / 2, ly - h / 2, w, h, 6); ctx.fill();
+    ctx.fillStyle = removing ? '#ffb3ba' : c.light;
+    ctx.fillText(label, tx, ly);
+  }
+}
+
+// Модельки солдатиков: у вас зелёный, у ботов свои — песочный (красные),
+// чёрный (зелёные) и камуфляж (фиолетовые). Все с тонкой светлой обводкой,
+// чтобы не терялись на тёмной карте (особенно чёрный).
+const SPR = {};                            // имя → canvas с обводкой, появляется после загрузки
+const ENEMY_SPRITE = [null, 'soldier-desert', 'soldier-black', 'soldier-camo'];
+function outlined(img) {
+  const pad = 5, c = document.createElement('canvas');
+  c.width = img.naturalWidth + pad * 2; c.height = img.naturalHeight + pad * 2;
+  const x = c.getContext('2d');
+  for (const [dx, dy] of [[-4, 0], [4, 0], [0, -4], [0, 4], [-3, -3], [3, 3], [-3, 3], [3, -3]]) x.drawImage(img, pad + dx, pad + dy);
+  x.globalCompositeOperation = 'source-in';
+  x.fillStyle = 'rgba(225, 232, 246, 0.55)';
+  x.fillRect(0, 0, c.width, c.height);
+  x.globalCompositeOperation = 'source-over';
+  x.drawImage(img, pad, pad);
+  return c;
+}
+for (const name of ['soldier-player', ...ENEMY_SPRITE.slice(1)]) {
+  const img = new Image();
+  img.onload = () => { SPR[name] = outlined(img); };
+  img.src = `art/${name}.png`;
+}
+// owner 0 бывает противником только у гостя в сетевой игре — ему песочный
+const spriteFor = owner => SPR[owner === me ? 'soldier-player' : ENEMY_SPRITE[owner] || 'soldier-desert'] || SPR['soldier-desert'];
+
+function drawUnits(t) {
+  if (SPR['soldier-player'] && SPR['soldier-desert']) drawSoldiers(t);
+  else drawUnitDots();                     // картинки не загрузились — рисуем точками, как раньше
+}
+
+function drawSoldiers(t) {
+  const h = Math.max(27, 21 / scale);     // рост солдатика в координатах карты; на телефоне крупнее
+  const w = h * 0.5;
+  // цветная тень под ногами — цвет команды
+  for (let owner = 0; owner < game.players; owner++) {
+    ctx.fillStyle = alpha(COL[owner].main, 0.6);
+    ctx.beginPath();
+    for (const u of game.units) {
+      if (u.owner !== owner) continue;
+      ctx.moveTo(X(u.x) + w * 0.55, u.y);
+      ctx.ellipse(X(u.x), u.y, w * 0.55, w * 0.22, 0, 0, Math.PI * 2);
+    }
+    ctx.fill();
+  }
+  // бустеры: «Двойной урон» — оранжевое свечение, «Ускорение» — светящийся след за спиной
+  for (let owner = 0; owner < game.players; owner++) {
+    const dmg = buff(game, owner, 'dmg'), fast = buff(game, owner, 'speed');
+    if (!dmg && !fast) continue;
+    for (const u of game.units) {
+      if (u.owner !== owner) continue;
+      const x = X(u.x);
+      if (dmg) {
+        const gr = ctx.createRadialGradient(x, u.y - h * 0.4, 0, x, u.y - h * 0.4, h * 0.7);
+        gr.addColorStop(0, 'rgba(255,138,61,0.55)'); gr.addColorStop(1, 'rgba(255,138,61,0)');
+        ctx.fillStyle = gr;
+        ctx.fillRect(x - h * 0.7, u.y - h * 1.1, h * 1.4, h * 1.4);
+      }
+      if (fast) {
+        const tn = game.nodes[u.target];
+        const dx = X(tn.x) - x, dy = tn.y - u.y, d = Math.hypot(dx, dy) || 1;
+        const L = h * 0.9, yy = u.y - h * 0.35;
+        const gr = ctx.createLinearGradient(x, yy, x - dx / d * L, yy - dy / d * L);
+        gr.addColorStop(0, 'rgba(110,231,255,0.8)'); gr.addColorStop(1, 'rgba(110,231,255,0)');
+        ctx.strokeStyle = gr; ctx.lineWidth = w * 0.45; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x - dx / d * L, yy - dy / d * L); ctx.stroke();
+        ctx.lineCap = 'butt';
+      }
+    }
+  }
+  // кто ниже на экране, тот рисуется поверх; лёгкое покачивание на бегу
+  ctx.imageSmoothingQuality = 'high';
+  const list = game.units.map((u, i) => [u, i]).sort((a, b) => a[0].y - b[0].y);
+  for (const [u, i] of list) {
+    const img = spriteFor(u.owner);
+    const sw = h * img.width / img.height;
+    const bob = Math.abs(Math.sin(t * 11 + (u.id ?? i) * 1.7)) * h * 0.07;
+    ctx.drawImage(img, X(u.x) - sw / 2, u.y - h + h * 0.1 - bob, sw, h);
+  }
+}
+
+function drawUnitDots() {
+  const ro = Math.max(5.5, 3.5 / scale), ri = Math.max(3, 2 / scale);   // на маленьком экране крупнее
+  for (let owner = 0; owner < game.players; owner++) {
+    const c = COL[owner];
+    ctx.fillStyle = alpha(c.main, 0.25);
+    ctx.beginPath();
+    for (const u of game.units) if (u.owner === owner) { ctx.moveTo(X(u.x) + ro, u.y); ctx.arc(X(u.x), u.y, ro, 0, Math.PI * 2); }
+    ctx.fill();
+    ctx.fillStyle = c.light;
+    ctx.beginPath();
+    for (const u of game.units) if (u.owner === owner) { ctx.moveTo(X(u.x) + ri, u.y); ctx.arc(X(u.x), u.y, ri, 0, Math.PI * 2); }
+    ctx.fill();
+  }
+}
+
+function drawFx(dt) {
+  for (const f of fx) {
+    f.t += dt;
+    const a = f.a;
+    if (a[0] === 0) {                           // выстрел форта
+      const life = 0.22, k = 1 - f.t / life;
+      if (k <= 0) continue;
+      ctx.strokeStyle = alpha(COL[a[5]].light, k);
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(X(a[1]), a[2]); ctx.lineTo(X(a[3]), a[4]); ctx.stroke();
+      circle(X(a[3]), a[4], 4 + (1 - k) * 6);
+      ctx.fillStyle = alpha('#ffffff', k * 0.8); ctx.fill();
+    } else if (a[0] === 1) {                    // захват башни
+      const life = 0.8, k = 1 - f.t / life;
+      if (k <= 0) continue;
+      circle(X(a[1]), a[2], 24 + (1 - k) * 60);
+      ctx.strokeStyle = alpha(COL[a[3]].main, k);
+      ctx.lineWidth = 4 * k + 1; ctx.stroke();
+    } else if (a[0] === 3) {                    // найден бустер: название всплывает над башней
+      const life = 1.8, k = 1 - f.t / life;
+      if (k <= 0) continue;
+      const b = BOOSTERS[a[4]], fz = fontPx(16, 12);
+      ctx.globalAlpha = Math.min(1, k * 1.6);
+      ctx.font = `800 ${fz}px Rubik, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 4; ctx.strokeStyle = '#0b0f19';
+      const ty = a[2] - 36 - (1 - k) * 46;
+      ctx.strokeText(`${b.icon} ${b.name}`, X(a[1]), ty);
+      ctx.fillStyle = b.color;
+      ctx.fillText(`${b.icon} ${b.name}`, X(a[1]), ty);
+      ctx.globalAlpha = 1;
+    }
+  }
+  fx = fx.filter(f => f.t < 2);
+}
+
+function drawNodes(t) {
+  for (const n of game.nodes) {
+    const c = COL[n.owner];
+    const x = X(n.x), y = n.y, r = n.r;
+
+    // свечение
+    const glow = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * 2);
+    glow.addColorStop(0, alpha(c.main, n.owner < 0 ? 0.12 : 0.35));
+    glow.addColorStop(1, alpha(c.main, 0));
+    ctx.fillStyle = glow;
+    circle(x, y, r * 2); ctx.fill();
+
+    // скрытое ускорение: тонкое золотое кольцо «дышит» вокруг главного здания
+    if (baseBoosted(game, n)) {
+      const k = (t * 0.8) % 1;
+      circle(x, y, r + 6 + k * 22);
+      ctx.strokeStyle = alpha('#ffc94d', 0.5 * (1 - k)); ctx.lineWidth = 2; ctx.stroke();
+    }
+
+    // бустер «Щит»: вращающееся голубое кольцо вокруг всех зданий игрока
+    if (n.owner >= 0 && buff(game, n.owner, 'shield')) {
+      ctx.setLineDash([6, 5]); ctx.lineDashOffset = -t * 20;
+      circle(x, y, r + 16);
+      ctx.strokeStyle = 'rgba(165,180,252,0.85)'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.setLineDash([]); ctx.lineDashOffset = 0;
+    }
+
+    // выделение / наведение
+    if (selected.has(n.id)) {
+      circle(x, y, r + 11 + Math.sin(t * 6) * 1.5);
+      ctx.strokeStyle = '#ffffffcc'; ctx.lineWidth = 2.5; ctx.stroke();
+    } else if (hoverId === n.id && playing()) {
+      circle(x, y, r + 11);
+      ctx.strokeStyle = '#ffffff44'; ctx.lineWidth = 2; ctx.stroke();
+    }
+
+    // корпус
+    if (n.type === 'base') {
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = Math.PI / 8 + i * Math.PI / 4;
+        ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+      }
+      ctx.closePath();
+    } else {
+      circle(x, y, r);
+    }
+    ctx.fillStyle = c.dark; ctx.fill();
+    ctx.strokeStyle = c.main; ctx.lineWidth = 3; ctx.stroke();
+
+    if (n.type === 'base') {
+      circle(x, y, r - 8);
+      ctx.strokeStyle = alpha(c.main, 0.45); ctx.lineWidth = 1.5; ctx.stroke();
+    }
+
+    // казарма: вращающиеся золотые точки
+    if (n.prod > 0) {
+      const cnt = n.prod * 2, orbit = r + 6;
+      ctx.fillStyle = '#ffc94d';
+      for (let i = 0; i < cnt; i++) {
+        const a = t * 1.4 + i * Math.PI * 2 / cnt;
+        circle(x + Math.cos(a) * orbit, y + Math.sin(a) * orbit, 2.6); ctx.fill();
+      }
+    }
+    // форт: сегменты щита
+    if (n.def > 0) {
+      const R = r + (n.prod > 0 ? 12 : 6);
+      ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+      for (let i = 0; i < 3; i++) {
+        const a0 = -Math.PI / 2 + i * (Math.PI * 2 / 3) + 0.22;
+        const a1 = a0 + Math.PI * 2 / 3 - 0.44;
+        ctx.strokeStyle = i < n.def ? '#6ee7ff' : alpha('#6ee7ff', 0.15);
+        ctx.beginPath(); ctx.arc(x, y, R, a0, a1); ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+    }
+
+    // число войск
+    ctx.fillStyle = '#fff';
+    const numPx = n.type === 'base' ? fontPx(20, 14) : Math.min(fontPx(16, 12), r * 0.95);
+    ctx.font = `700 ${numPx}px Rubik, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(Math.floor(n.units), x, y + 1);
+
+    // в башне спрятан бустер: золотой «?» (что именно — узнает тот, кто захватит)
+    if (n.booster >= 0) {
+      const br = fontPx(10, 7.5);
+      const bx = x + r * 0.8, by = y - r * 0.8 + Math.sin(t * 3 + n.id) * 1.5;
+      circle(bx, by, br);
+      ctx.fillStyle = '#ffc94d'; ctx.fill();
+      ctx.strokeStyle = '#0b0f19'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#0b0f19';
+      ctx.font = `800 ${br * 1.45}px Rubik, sans-serif`;
+      ctx.fillText('?', bx, by + br * 0.08);
+    }
+
+    if (n.type === 'base') {
+      const lp = fontPx(11, 9);
+      ctx.font = `600 ${lp}px Rubik, sans-serif`;
+      ctx.fillStyle = alpha(c.light, 0.9);
+      const lbl = n.owner === me ? 'ВАША БАЗА' : game.players > 2 ? TEAM[n.owner] : 'БАЗА ВРАГА';
+      ctx.fillText(lbl, x, y + r + 9 + lp);
+    }
+  }
+}
+
+function drawCountdown() {
+  if (game.countdown <= 0 || game.over !== null) return;
+  const v = Math.ceil(game.countdown);
+  const k = game.countdown - Math.floor(game.countdown);
+  ctx.fillStyle = `rgba(255,255,255,${0.35 + k * 0.6})`;
+  ctx.font = `800 ${90 + k * 40}px Rubik, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(v, W / 2, H / 2 - 110);
+  ctx.font = '600 20px Rubik, sans-serif';
+  ctx.fillStyle = COL[me].light;
+  ctx.fillText(`Вы играете за ${TEAM_ACC[me]}`, W / 2, H / 2 - 40);
+  if (mode === 'solo') {
+    ctx.font = '500 16px Rubik, sans-serif';
+    ctx.fillStyle = '#8c97b2';
+    const c = matchCfg, enemies = game.players - 1;
+    const what = c.kind === 'level' ? `Уровень ${c.level}` : 'Тренировка';
+    ctx.fillText(`${what} · соперников: ${enemies} · ${DIFFS[game.bots[0].diff].name.toLowerCase()}`, W / 2, H / 2 - 12);
+  }
+}
+
+let hudKey = '';
+function updateHud() {
+  const n = game.players, tot = Array(n).fill(0), cnt = Array(n).fill(0);
+  for (const x of game.nodes) if (x.owner >= 0) { tot[x.owner] += x.units; cnt[x.owner]++; }
+  for (const u of game.units) tot[u.owner]++;
+  const many = n > 2;
+  const chip = p => {
+    const label = p === me ? 'Вы' : many ? '' : mode === 'solo' ? 'Бот' : 'Соперник';
+    return `<div class="chip${game.alive[p] ? '' : ' out'}"><span class="dot" style="background:${COL[p].main}"></span>` +
+      (label ? `<b>${label}</b> ` : '') +
+      (!game.alive[p] ? 'выбыли' : many ? `⚔${Math.floor(tot[p])} 🏰${cnt[p]}` : `⚔ ${Math.floor(tot[p])} · 🏰 ${cnt[p]}`) + '</div>';
+  };
+  let html = chip(me);
+  for (let p = 0; p < n; p++) if (p !== me) html += chip(p);
+  if (html !== hudKey) {
+    $('stats').innerHTML = html; hudKey = html;
+    $('stats').classList.toggle('many', many);
+  }
+  // активные бустеры игрока с обратным отсчётом
+  let bh = '';
+  for (const b of BOOSTERS) {
+    if (!b.secs || !buff(game, me, b.key)) continue;
+    const left = Math.ceil(game.buffs[me][b.key] - game.time);
+    bh += `<div class="chip buff" style="border-color:${b.color};color:${b.color}" title="${b.name}: ${b.text}">${b.icon} ${left} с</div>`;
+  }
+  if (bh !== buffKey) { $('buffs').innerHTML = bh; buffKey = bh; }
+}
+let buffKey = '';
+
+let panelKey = '';
+function updatePanel() {
+  const panel = $('panel');
+  if (!selected.size || !playing()) { panel.classList.add('hidden'); panelKey = ''; return; }
+  panel.classList.remove('hidden');
+
+  if (selected.size > 1) {
+    let sum = 0, routes = 0;
+    for (const id of selected) { sum += Math.floor(game.nodes[id].units); if (game.nodes[id].route >= 0) routes++; }
+    const key = 'm' + selected.size + ':' + sum + ':' + routes;
+    if (key === panelKey) return;
+    panelKey = key;
+    $('pTitle').textContent = `Выбрано башен: ${selected.size}`;
+    $('pInfo').textContent = `Войск: ${sum} · Путей: ${routes}. Перетащите к цели, чтобы проложить пути.`;
+    $('unrouteBtn').classList.toggle('hidden', routes === 0);
+    $('pBtns').classList.add('hidden');
+    return;
+  }
+
+  const n = game.nodes[[...selected][0]];
+  const u = Math.floor(n.units);
+  const key = [n.id, u, n.prod, n.def, n.route].join(':');
+  if (key === panelKey) return;
+  panelKey = key;
+  $('pBtns').classList.remove('hidden');
+  $('unrouteBtn').classList.toggle('hidden', n.route < 0);
+
+  let title = 'Башня';
+  if (n.type === 'base') title = 'Главное здание';
+  else if (n.prod > 0) title = `Казарма · ур. ${n.prod}`;
+  else if (n.def > 0) title = `Форт · ур. ${n.def}`;
+  $('pTitle').textContent = title;
+
+  const rate = effRate(game, n);
+  $('pInfo').textContent =
+    `Войск: ${u} / ${capOf(n)} · Производство: ${rate ? rate.toFixed(1) + '/с' : 'нет'} · Прочность ×${CFG.strength[n.def]}`;
+
+  const setBtn = (btn, b) => {
+    const lv = n[b], t = btn.querySelector('.t'), s = btn.querySelector('.s');
+    const name = b === 'prod' ? 'Казарма' : 'Форт';
+    if (!canBranch(n, b)) {
+      t.textContent = name; s.textContent = b === 'prod' ? 'Недоступно: башня уже форт' : 'Недоступно: башня уже казарма';
+      btn.disabled = true; return;
+    }
+    if (lv >= 3) { t.textContent = `${name}: макс. уровень`; s.textContent = ''; btn.disabled = true; return; }
+    const cost = CFG.cost[lv];
+    t.textContent = `${name} → ур. ${lv + 1}   (${cost} войск)`;
+    if (b === 'prod') {
+      const next = n.type === 'base'
+        ? (CFG.baseProd + CFG.baseProdPer * (lv + 1)) * (baseBoosted(game, n) ? BOOST_MUL : 1)
+        : CFG.towerProd[lv + 1];
+      s.textContent = `Производство ${next.toFixed(1)} войск/с`;
+    } else {
+      s.textContent = `Прочность ×${CFG.strength[lv + 1]}, стрельба ${CFG.shootRate[lv + 1]}/с`;
+    }
+    btn.disabled = u < cost;
+  };
+  setBtn($('upProd'), 'prod');
+  setBtn($('upDef'), 'def');
+}
+
+// =====================================================================
+//  Игровой цикл хоста. Тикер в Web Worker продолжает работать, даже если
+//  вкладка хоста свёрнута (обычные таймеры в фоне сильно замедляются).
+// =====================================================================
+let lastTick = performance.now(), sendAcc = 0;
+function hostTick() {
+  if (!game || (mode !== 'host' && mode !== 'solo')) return;
+  const now = performance.now();
+  let dt = Math.min(0.25, (now - lastTick) / 1000);
+  lastTick = now;
+  if (paused()) return;                  // в тренировке игра стоит, пока открыт диалог выхода
+  while (dt > 0) {
+    const s = Math.min(dt, 1 / 30);
+    step(game, s);
+    if (mode === 'solo') for (const b of game.bots) botStep(game, s, b);
+    dt -= s;
+  }
+  if (mode === 'host' && conn && conn.open) {
+    sendAcc += (now - (hostTick.prev || now)) / 1000;
+    if (sendAcc >= 0.05) { sendAcc = 0; conn.send(snapshot(game)); }
+  }
+  hostTick.prev = now;
+}
+
+// Если Worker недоступен (например, страница открыта из файла внутри приложения), берём обычный таймер
+let tickFallback = 0;
+const useIntervalTicker = () => { if (!tickFallback) tickFallback = setInterval(hostTick, 16); };
+try {
+  const src = 'setInterval(() => postMessage(0), 16);';
+  const worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+  worker.onmessage = hostTick;
+  worker.onerror = useIntervalTicker;
+} catch (e) {
+  useIntervalTicker();
+}
+
+// =====================================================================
+//  Кнопки меню
+// =====================================================================
+if (!NETWORK_ENABLED) {
+  document.body.classList.add('no-net');
+  $('subtitle').textContent = 'Стратегия против ботов';
+}
+if (IS_TOUCH) document.body.classList.add('touch');
+if (DESKTOP_APP) {
+  $('appExitRow').classList.remove('hidden');
+  $('appExitBtn').onclick = () => chrome.webview.postMessage('quit');
+  window.addEventListener('keydown', e => {
+    if (e.key === 'F11') { e.preventDefault(); chrome.webview.postMessage('fullscreen'); }
+  });
+}
+$('rulesText').innerHTML = RULES_HTML;
+$('helpText').innerHTML = RULES_HTML;
+$('hostBtn').onclick = hostGame;
+$('joinBtn').onclick = joinGame;
+$('codeInput').addEventListener('keydown', e => { if (e.key === 'Enter') joinGame(); });
+$('codeInput').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+// ---------- Одиночная игра: тренировка и уровни ----------
+function bindSeg(id, onPick) {
+  for (const b of $(id).querySelectorAll('button')) {
+    b.onclick = () => {
+      for (const o of $(id).querySelectorAll('button')) o.classList.toggle('on', o === b);
+      onPick(+b.dataset.v);
+    };
+  }
+}
+bindSeg('diffSeg', v => { matchCfg.diff = v; });
+bindSeg('enemySeg', v => { matchCfg.enemies = v; });
+
+let shownLevel = loadMaxLevel();
+function renderLevelCard() {
+  const max = loadMaxLevel();
+  shownLevel = Math.min(Math.max(1, shownLevel), max);
+  const lp = levelParams(shownLevel);
+  $('lvlTitle').textContent = `Уровень ${shownLevel}`;
+  $('lvlInfo').textContent = `Соперников: ${lp.enemies} · башен: ~${lp.towers} · ${DIFFS[lp.diff].name.toLowerCase()}` +
+    (lp.bonus ? ` · у врагов +${lp.bonus} войск` : '');
+  $('lvlDone').classList.toggle('hidden', shownLevel >= max);
+  $('lvlPrev').disabled = shownLevel <= 1;
+  $('lvlNext').disabled = shownLevel >= max;
+  $('levelBtn').textContent = `Играть уровень ${shownLevel}`;
+}
+$('lvlPrev').onclick = () => { shownLevel--; renderLevelCard(); };
+$('lvlNext').onclick = () => { shownLevel++; renderLevelCard(); };
+renderLevelCard();
+
+function startSolo(cfg) {
+  mode = 'solo'; me = 0;
+  Object.assign(matchCfg, cfg);
+  startMatch();
+}
+$('soloBtn').onclick = () => startSolo({ kind: 'train' });
+$('levelBtn').onclick = () => startSolo({ kind: 'level', level: shownLevel });
+$('nextBtn').onclick = () => {
+  shownLevel = matchCfg.level + 1;
+  startSolo({ kind: 'level', level: shownLevel });
+};
+$('menuBtn').onclick = leaveGame;
+$('leaveBtn').onclick = openLeaveDialog;
+$('allBtn').onclick = () => { if (playing()) selectAll(); };
+
+// Кнопка «Назад» на Android: закрыть окно → открыть выход → в меню выйти из приложения.
+// Возвращает true, если нажатие обработано игрой.
+window.androidBack = () => {
+  if (!$('leaveModal').classList.contains('hidden')) { closeLeaveDialog(); return true; }
+  if (!$('helpModal').classList.contains('hidden')) { $('helpModal').classList.add('hidden'); return true; }
+  if (game) {
+    if (!$('overlay').classList.contains('hidden')) leaveGame();
+    else openLeaveDialog();
+    return true;
+  }
+  return false;
+};
+$('leaveYes').onclick = leaveGame;
+$('leaveNo').onclick = closeLeaveDialog;
+$('rematchBtn').onclick = () => {
+  if (mode === 'guest') {
+    conn?.open && conn.send({ t: 'rematch' });
+    $('rematchBtn').disabled = true;
+    $('rematchBtn').textContent = 'Ждём хоста…';
+  } else {
+    startMatch();
+  }
+};
+// =====================================================================
+//  Telegram Mini App. Telegram передаёт параметры запуска в адресе (#tgWebAppData=…),
+//  поэтому SDK подгружается только внутри Telegram — в браузере, Android и Windows ничего не меняется.
+// =====================================================================
+const IN_TELEGRAM = /tgWebApp/.test(location.hash + location.search);
+let tg = null, tgBackShown = false;
+if (IN_TELEGRAM) {
+  const s = document.createElement('script');
+  s.src = 'https://telegram.org/js/telegram-web-app.js';
+  s.onload = initTelegram;
+  document.head.appendChild(s);
+}
+
+function initTelegram() {
+  tg = window.Telegram && window.Telegram.WebApp;
+  if (!tg) return;
+  tg.ready();
+  tg.expand();
+  try { tg.setHeaderColor('#0b0f19'); tg.setBackgroundColor('#0b0f19'); } catch (e) {}
+  if (tg.isVersionAtLeast('7.7')) tg.disableVerticalSwipes();          // свайп вниз не сворачивает игру
+  // на телефоне — на весь экран, чтобы можно было играть горизонтально
+  if (['android', 'ios'].includes(tg.platform) && tg.isVersionAtLeast('8.0')) {
+    try { tg.requestFullscreen(); } catch (e) {}
+  }
+  // отступы под вырез камеры и кнопки Telegram поверх игры
+  const applySafe = () => {
+    const a = tg.safeAreaInset || {}, c = tg.contentSafeAreaInset || {};
+    safe = {
+      t: (a.top || 0) + (c.top || 0), r: (a.right || 0) + (c.right || 0),
+      b: (a.bottom || 0) + (c.bottom || 0), l: (a.left || 0) + (c.left || 0),
+    };
+    const st = document.documentElement.style;
+    st.setProperty('--safe-t', safe.t + 'px'); st.setProperty('--safe-r', safe.r + 'px');
+    st.setProperty('--safe-b', safe.b + 'px'); st.setProperty('--safe-l', safe.l + 'px');
+    resize();
+  };
+  applySafe();
+  for (const ev of ['safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged', 'viewportChanged']) tg.onEvent(ev, applySafe);
+  // кнопка «Назад» Telegram работает как «Назад» на Android
+  tg.BackButton.onClick(() => { if (!window.androidBack()) tg.close(); });
+  // прогресс уровней из облака Telegram (общий для телефона и компьютера)
+  if (tg.isVersionAtLeast('6.9')) {
+    tg.CloudStorage.getItem(LEVEL_KEY, (err, v) => {
+      const n = parseInt(v, 10);
+      if (err || !(n > loadMaxLevel())) return;
+      memMaxLevel = n;
+      try { localStorage.setItem(LEVEL_KEY, String(n)); } catch (e) {}
+      shownLevel = n;
+      renderLevelCard();
+    });
+  }
+}
+
+// «Назад» Telegram видна в игре и в открытых окнах; в меню Telegram показывает свою кнопку закрытия
+function syncTgBack() {
+  if (!tg) return;
+  const want = !!game || !$('helpModal').classList.contains('hidden');
+  if (want === tgBackShown) return;
+  tgBackShown = want;
+  if (want) tg.BackButton.show(); else tg.BackButton.hide();
+}
+
+// Лёгкая вибрация в Telegram: 'light' | 'medium' | 'success' | 'error'
+function tgHaptic(kind) {
+  if (!tg || !tg.HapticFeedback) return;
+  try {
+    if (kind === 'success' || kind === 'error') tg.HapticFeedback.notificationOccurred(kind);
+    else tg.HapticFeedback.impactOccurred(kind);
+  } catch (e) {}
+}
+
+$('helpBtn').onclick = () => $('helpModal').classList.remove('hidden');
+$('helpClose').onclick = () => $('helpModal').classList.add('hidden');
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
