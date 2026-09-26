@@ -68,7 +68,16 @@
   .cards { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
   body.no-net .net-card { display: none; }
   body.no-net .cards { grid-template-columns: 1fr 1fr; }
-  @media (max-width: 640px) { .cards, body.no-net .cards { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) {
+    /* узкий экран (телефон вертикально): одна колонка, ничего не вылезает за край */
+    .cards, body.no-net .cards { grid-template-columns: minmax(0, 1fr); }
+    .seg button { font-size: 12px; padding: 7px 2px; }
+    .code-box .code { font-size: 26px; letter-spacing: 4px; }
+    .logo { padding: 0 42px; }                 /* не под шестерёнкой и кнопкой «В галерею» */
+  }
+  .card { min-width: 0; }
+  .code-box { flex-wrap: wrap; }
+  .code-box > span:last-child { flex-wrap: wrap; }
   /* карточка «Онлайн»: создать комнату / или / код + «Войти» */
   .or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
   .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
@@ -86,7 +95,7 @@
   .grow-top { margin-top: auto; }
   .field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
   .seg { display: flex; gap: 3px; background: #0e1426; border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
-  .seg button { flex: 1; padding: 6px 4px; border: none; background: transparent; font-size: 13px; border-radius: 7px; }
+  .seg button { flex: 1 1 0; min-width: 0; padding: 6px 4px; border: none; background: transparent; font-size: 13px; border-radius: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .seg button.on { background: var(--blue); color: #fff; font-weight: 700; }
   .seg button.hardcore { color: #ff8a95; }
   .seg button.hardcore.on { background: var(--red); color: #fff; }
@@ -265,7 +274,7 @@
   @media (orientation: portrait) and (max-width: 700px) { body.ingame #rotateHint { display: flex; } }
   .lobby-back {
     position: fixed; z-index: 11;
-    top: var(--hud-t, calc(12px + var(--safe-t))); left: calc(12px + var(--safe-l));
+    top: var(--hud-t, calc(12px + var(--safe-t))); left: calc(12px + var(--safe-l) + var(--hud-pl, 0px));   /* правее кнопки Telegram «Закрыть» */
   }
 </style>
 </head>
@@ -418,9 +427,15 @@
 const W = 1200;
 let H = 720;             // высота карты: в одиночной игре подстраивается под экран (worldHeightForScreen), в сети — 720
 // Сетевая игра включена в Telegram-версии; в браузере, Android и Windows пока скрыта из меню (код рабочий)
-const NETWORK_ENABLED = /tgWebApp/.test(location.hash + location.search);
+// Открыта ли игра в Telegram. Параметры запуска Telegram кладёт в адрес (#tgWebAppData=…);
+// если игру открыла галерея переходом на другую страницу, адрес уже без них, но SDK Telegram
+// сохраняет их в sessionStorage — проверяем и там.
+const TG_LAUNCH = /tgWebApp/.test(location.hash + location.search) ||
+  (() => { try { return !!sessionStorage.getItem('__telegram__initParams'); } catch (e) { return false; } })();
+const NETWORK_ENABLED = TG_LAUNCH;
 // Ссылка на игру в Telegram: приглашение в комнату — ?startapp=КОД (друг сразу попадает в комнату)
-const TG_APP_LINK = 'https://t.me/pleasure_union_bot/play';
+// Главное Mini App бота (галерея Pleasure Union): t.me/бот?startapp=… — отдельного «/play» у бота нет
+const TG_APP_LINK = 'https://t.me/pleasure_union_bot';
 const PEER_PREFIX = 'bitva-bashen-v1-';
 const CODE_LEN = 4;      // код комнаты — 4 цифры, его легко продиктовать и ввести
 
@@ -494,7 +509,7 @@ const BOOSTER_CHANCE = 0.33, SPEED_MUL = 1.7, REINF_UNITS = 25;
 const IS_TOUCH = !!window.AndroidApp || matchMedia('(pointer: coarse)').matches;
 // Запущено внутри Windows-приложения (WebView2): есть F11 и кнопка выхода из игры
 // (Telegram на компьютере тоже работает на WebView2, поэтому Telegram исключаем явно)
-const DESKTOP_APP = !!(window.chrome && window.chrome.webview) && !/tgWebApp/.test(location.hash + location.search);
+const DESKTOP_APP = !!(window.chrome && window.chrome.webview) && !TG_LAUNCH;
 // Значки улучшений над выбранной башней
 const UPGRADE_HELP = `
     <li><b>Улучшения</b> оплачиваются войсками из самой башни. Выберите одну башню — над ней появятся значки:
@@ -2700,7 +2715,7 @@ $('rematchBtn').onclick = () => {
 //  Telegram Mini App. Telegram передаёт параметры запуска в адресе (#tgWebAppData=…),
 //  поэтому SDK подгружается только внутри Telegram — в браузере, Android и Windows ничего не меняется.
 // =====================================================================
-const IN_TELEGRAM = /tgWebApp/.test(location.hash + location.search);
+const IN_TELEGRAM = TG_LAUNCH;
 let tg = null, tgBackShown = false;
 if (IN_TELEGRAM) {
   const s = document.createElement('script');
