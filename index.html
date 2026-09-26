@@ -91,7 +91,14 @@
   .chip.out { opacity: .45; text-decoration: line-through; }
   .buffs { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; justify-content: center; }
   .buffs:empty { visibility: hidden; }
-  .chip.buff { font-weight: 700; border-width: 2px; }
+  .chip.buff { font-weight: 700; border-width: 2px; cursor: help; }
+  #buffTip {
+    position: fixed; z-index: 7; max-width: 250px; pointer-events: none;
+    background: #141b2df5; border: 2px solid var(--line); border-radius: 12px;
+    padding: 8px 12px; font-size: 13px; line-height: 1.4; box-shadow: 0 8px 24px #0009;
+  }
+  #buffTip b { display: block; font-size: 14px; margin-bottom: 2px; }
+  #buffTip span { color: var(--muted); }
   body.side .buffs { justify-content: flex-start; flex: none; }
   .stats.many { display: grid; grid-template-columns: repeat(4, auto); }
   body.side .stats.many { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -269,6 +276,7 @@
 </div>
 
 <div id="toast" class="hidden"></div>
+<div id="buffTip" class="hidden"></div>
 
 <!-- Lobby -->
 <div id="lobby">
@@ -554,8 +562,8 @@ function grantBooster(g, p, n) {
 
 function onBooster(p, idx) {
   const b = BOOSTERS[idx];
-  if (p === me) { toast(`${b.icon} ${b.name}${b.secs ? ` на ${b.secs} с` : ''}: ${b.text}`); tgHaptic('medium'); }
-  else if (game && game.players > 1) toast(`${TEAM_NAME[p]} получили: ${b.icon} ${b.name}`);
+  if (p === me) { toast(`${b.icon} ${b.name}${b.secs ? ` на ${b.secs} с` : ''}: ${b.text}`, 3500); tgHaptic('medium'); }
+  else if (game && game.players > 1) toast(`${TEAM_NAME[p]} получили: ${b.icon} ${b.name}`, 3000);
 }
 
 function canBranch(n, b) { return n.type === 'base' || (b === 'prod' ? n.def === 0 : n.prod === 0); }
@@ -1153,7 +1161,8 @@ function leaveGame() {
 
   mode = null; me = 0; game = null;
   fx = []; netEvents = []; selected.clear();
-  endPress(); hoverId = -1; hoverRoute = -1;
+  endPress(); hoverId = -1; hoverRoute = -1; nodeTip = null;
+  hideBuffTip();
   document.body.classList.remove('ingame');
   canvas.style.cursor = '';
 
@@ -1315,13 +1324,13 @@ function cmdUpgrade(id, b) {
 }
 
 let toastTimer = 0;
-function toast(text) {
+function toast(text, ms = 1600) {
   const t = $('toast');
   t.textContent = text;
   t.classList.remove('hidden');
   t.style.opacity = 1;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.style.opacity = 0; }, 1600);
+  toastTimer = setTimeout(() => { t.style.opacity = 0; }, ms);
 }
 
 // =====================================================================
@@ -1392,6 +1401,7 @@ function selectAll() {
 //   Мышь: Shift+клик — добавить к выбору. Палец: долгое нажатие на свою башню — добавить к выбору.
 let press = null;
 const LONG_PRESS_MS = 450;
+let nodeTip = null;                         // подсказка над башней с бустером после касания: { id, until }
 
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('pointerdown', e => {
@@ -1467,6 +1477,8 @@ canvas.addEventListener('pointerup', e => {
     else if (!pr.shift) { selected.clear(); selected.add(pr.from); }
   } else if (selected.size) {
     cmdRoute([...selected], pr.from);
+  } else if (game.nodes[pr.from].booster >= 0) {
+    nodeTip = { id: pr.from, until: performance.now() + 2800 };   // касание башни с «?» — подсказка
   }
 });
 
@@ -1547,6 +1559,7 @@ function frame(now) {
   drawFx(dt);
   drawNodes(now / 1000);
   drawRouteHover();
+  drawBoosterTip(now);
   drawCountdown();
   updateHud();
   updatePanel();
@@ -1639,6 +1652,34 @@ function drawRouteHover() {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffb3ba';
   ctx.fillText('убрать путь', mx, my + 11 + fontPx(12, 10));
+}
+
+// Подсказка над башней с «?»: мышь — по наведению, палец — несколько секунд после касания
+function drawBoosterTip(now) {
+  let n = null;
+  if (nodeTip && now < nodeTip.until) n = game.nodes[nodeTip.id];
+  else if (hoverId >= 0 && !drag && !selected.size && playing()) n = game.nodes[hoverId];   // при выбранных башнях там подсказка пути
+  if (!n || n.booster < 0) return;
+  const f1 = fontPx(14, 11), f2 = fontPx(12, 9.5);
+  const l1 = '? Здесь спрятан бустер';
+  const l2 = 'Захватите башню первым, чтобы его получить';
+  ctx.font = `700 ${f1}px Rubik, sans-serif`;
+  const w1 = ctx.measureText(l1).width;
+  ctx.font = `500 ${f2}px Rubik, sans-serif`;
+  const w = Math.max(w1, ctx.measureText(l2).width) + f1 * 1.4, h = f1 * 1.5 + f2 * 1.5 + f1 * 0.6;
+  const x = Math.min(W - w / 2 - 4, Math.max(w / 2 + 4, X(n.x)));
+  let y = n.y - n.r - 18 - h;
+  if (y < 4) y = n.y + n.r + 18;                   // у верхнего края — под башней
+  ctx.fillStyle = '#141b2df5';
+  ctx.beginPath(); ctx.roundRect(x - w / 2, y, w, h, 8); ctx.fill();
+  ctx.strokeStyle = '#ffc94d'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffc94d';
+  ctx.font = `700 ${f1}px Rubik, sans-serif`;
+  ctx.fillText(l1, x, y + f1 * 0.3 + f1 * 0.75);
+  ctx.fillStyle = '#c4cad6';
+  ctx.font = `500 ${f2}px Rubik, sans-serif`;
+  ctx.fillText(l2, x, y + f1 * 0.3 + f1 * 1.5 + f2 * 0.75);
 }
 
 function drawOrders() {
@@ -1794,21 +1835,21 @@ function drawFx(dt) {
       ctx.strokeStyle = alpha(COL[a[3]].main, k);
       ctx.lineWidth = 4 * k + 1; ctx.stroke();
     } else if (a[0] === 3) {                    // найден бустер: название всплывает над башней
-      const life = 1.8, k = 1 - f.t / life;
+      const life = 2.8, k = 1 - f.t / life;
       if (k <= 0) continue;
       const b = BOOSTERS[a[4]], fz = fontPx(16, 12);
-      ctx.globalAlpha = Math.min(1, k * 1.6);
+      ctx.globalAlpha = Math.min(1, k * 2.5);
       ctx.font = `800 ${fz}px Rubik, sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineWidth = 4; ctx.strokeStyle = '#0b0f19';
-      const ty = a[2] - 36 - (1 - k) * 46;
+      const ty = a[2] - 36 - (1 - k) * 50;
       ctx.strokeText(`${b.icon} ${b.name}`, X(a[1]), ty);
       ctx.fillStyle = b.color;
       ctx.fillText(`${b.icon} ${b.name}`, X(a[1]), ty);
       ctx.globalAlpha = 1;
     }
   }
-  fx = fx.filter(f => f.t < 2);
+  fx = fx.filter(f => f.t < 3);
 }
 
 function drawNodes(t) {
@@ -1960,11 +2001,46 @@ function updateHud() {
   for (const b of BOOSTERS) {
     if (!b.secs || !buff(game, me, b.key)) continue;
     const left = Math.ceil(game.buffs[me][b.key] - game.time);
-    bh += `<div class="chip buff" style="border-color:${b.color};color:${b.color}" title="${b.name}: ${b.text}">${b.icon} ${left} с</div>`;
+    bh += `<div class="chip buff" data-k="${b.key}" style="border-color:${b.color};color:${b.color}">${b.icon} ${left} с</div>`;
   }
   if (bh !== buffKey) { $('buffs').innerHTML = bh; buffKey = bh; }
+  if (tipKey) {                           // подсказка открыта — обновляем таймер или прячем, если бустер кончился
+    if (buff(game, me, tipKey)) showBuffTip(tipKey); else hideBuffTip();
+  }
 }
 let buffKey = '';
+
+// Подсказка к плашке бустера: мышь — по наведению, палец — по нажатию (повторное нажатие закрывает)
+let tipKey = null;
+function showBuffTip(key) {
+  const chip = $('buffs').querySelector(`[data-k="${key}"]`);
+  const b = BOOSTERS.find(x => x.key === key);
+  if (!chip || !b) { hideBuffTip(); return; }
+  tipKey = key;
+  const tip = $('buffTip');
+  const left = Math.max(0, Math.ceil(game.buffs[me][key] - game.time));
+  const html = `<b style="color:${b.color}">${b.icon} ${b.name}</b>${b.text}.<br><span>Осталось ${left} с</span>`;
+  if (tip.innerHTML !== html) tip.innerHTML = html;
+  tip.style.borderColor = b.color;
+  tip.classList.remove('hidden');
+  const r = chip.getBoundingClientRect(), tw = tip.offsetWidth;
+  tip.style.left = Math.max(8, Math.min(innerWidth - tw - 8, r.left + r.width / 2 - tw / 2)) + 'px';
+  tip.style.top = (r.bottom + 8) + 'px';
+}
+function hideBuffTip() { tipKey = null; $('buffTip').classList.add('hidden'); }
+$('buffs').addEventListener('pointerover', e => {
+  const c = e.target.closest('.chip.buff');
+  if (c && e.pointerType === 'mouse') showBuffTip(c.dataset.k);
+});
+$('buffs').addEventListener('pointerout', e => { if (e.pointerType === 'mouse') hideBuffTip(); });
+$('buffs').addEventListener('click', e => {
+  const c = e.target.closest('.chip.buff');
+  if (!c) return;
+  if (tipKey === c.dataset.k) hideBuffTip(); else showBuffTip(c.dataset.k);
+});
+document.addEventListener('pointerdown', e => {   // нажатие мимо плашек закрывает подсказку
+  if (tipKey && !e.target.closest('#buffs')) hideBuffTip();
+});
 
 let panelKey = '';
 function updatePanel() {
