@@ -272,10 +272,6 @@
   #rotateHint .ico { font-size: 60px; animation: rot 1.8s ease-in-out infinite; }
   @keyframes rot { 0%, 25% { transform: rotate(0); } 60%, 100% { transform: rotate(90deg); } }
   @media (orientation: portrait) and (max-width: 700px) { body.ingame #rotateHint { display: flex; } }
-  .lobby-back {
-    position: fixed; z-index: 11;
-    top: var(--hud-t, calc(12px + var(--safe-t))); left: calc(12px + var(--safe-l) + var(--hud-pl, 0px));   /* правее кнопки Telegram «Закрыть» */
-  }
 </style>
 </head>
 <body>
@@ -305,7 +301,7 @@
 
 <!-- Upgrade panel -->
 <div id="panel" class="hidden">
-  <button id="upProd" class="tb-btn prod" aria-label="Казарма">⚒<span class="lvl"></span><span class="cost"></span></button>
+  <button id="upProd" class="tb-btn prod" aria-label="Казарма">⚔️<span class="lvl"></span><span class="cost"></span></button>
   <button id="upDef" class="tb-btn def" aria-label="Форт">🛡<span class="lvl"></span><span class="cost"></span></button>
   <button id="unrouteBtn" class="tb-btn route" aria-label="Убрать путь" title="Убрать путь (X)">✕</button>
 </div>
@@ -315,7 +311,6 @@
 
 <!-- Lobby -->
 <div id="lobby">
-  <button class="icon-btn lobby-back" id="puBack" style="display:none" title="В галерею" aria-label="В галерею">←</button>
   <button class="icon-btn settings-btn lobby-gear" title="Настройки" aria-label="Настройки"></button>
   <div class="lobby-box">
     <div class="logo">
@@ -513,7 +508,7 @@ const DESKTOP_APP = !!(window.chrome && window.chrome.webview) && !TG_LAUNCH;
 // Значки улучшений над выбранной башней
 const UPGRADE_HELP = `
     <li><b>Улучшения</b> оплачиваются войсками из самой башни. Выберите одну башню — над ней появятся значки:
-      <br>⚒ <b>Казарма</b>${IS_TOUCH ? '' : ' (<kbd>Q</kbd>)'}: башня начинает производить войска, с каждым уровнем больше.
+      <br>⚔️ <b>Казарма</b>${IS_TOUCH ? '' : ' (<kbd>Q</kbd>)'}: башня начинает производить войска, с каждым уровнем больше.
       <br>🛡 <b>Форт</b>${IS_TOUCH ? '' : ' (<kbd>E</kbd>)'}: защитники крепче, а башня стреляет по вражеским войскам рядом.
       <br>✕ <b>Убрать путь</b>${IS_TOUCH ? '' : ' (<kbd>X</kbd>)'}: башня перестаёт отправлять войска.
       <br>Цифра внизу значка — цена в войсках, цифра в уголке — текущий уровень (до 3).
@@ -2553,7 +2548,7 @@ document.addEventListener('pointerdown', e => {   // нажатие мимо п�
 });
 
 let panelKey = '';
-// Значки над выбранной башней: ⚒ казарма, 🛡 форт (цифра в уголке — уровень, внизу — цена), ✕ убрать путь.
+// Значки над выбранной башней: ⚔️ казарма, 🛡 форт (цифра в уголке — уровень, внизу — цена), ✕ убрать путь.
 // Бледный значок — не хватает войск или недоступно; нажатие подскажет почему. Описание — в «?».
 function updatePanel() {
   const panel = $('panel');
@@ -2846,14 +2841,11 @@ $('helpModal').addEventListener('click', e => { if (e.target === $('helpModal'))
 requestAnimationFrame(frame);
 </script>
 <script>
+// В галерее Pleasure Union подключаем её SDK: кнопка «Назад» Telegram тогда возвращает в галерею
+// (см. tg.BackButton.onClick). Отдельной кнопки-стрелки в меню нет.
 if (new URLSearchParams(location.search).get('pu') === '1') {
   const s = document.createElement('script');
   s.src = '/sdk/pu.js';
-  s.onload = () => {
-    const b = document.getElementById('puBack');
-    b.style.display = '';
-    b.onclick = () => PU.exit();
-  };
   document.head.appendChild(s);
 }
 </script>
