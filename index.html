@@ -99,10 +99,8 @@
   }
   #buffTip b { display: block; font-size: 14px; margin-bottom: 2px; }
   #buffTip span { color: var(--muted); }
-  body.side .buffs { justify-content: flex-start; flex: none; }
-  .stats.many { display: grid; grid-template-columns: repeat(4, auto); }
-  body.side .stats.many { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  body.side .stats.many .chip { padding: 4px 7px; gap: 5px; overflow: hidden; }
+  body.compact .buffs { gap: 4px; }
+  body.compact .chip.buff { padding: 2px 8px; }
   .code-box {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     background: #0e1426; border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px;
@@ -149,11 +147,11 @@
     background: #0e1426; border: 1px solid var(--line); color: var(--text); font: 600 12px/18px 'Rubik', sans-serif;
   }
 
-  /* ---------- HUD ---------- */
+  /* ---------- HUD: верхняя строка поверх поля ---------- */
   #hud {
-    position: fixed; top: var(--safe-t); left: var(--safe-l); right: var(--safe-r); height: 56px; z-index: 5;
+    position: fixed; top: var(--hud-t, var(--safe-t)); left: var(--safe-l); right: var(--safe-r); height: 56px; z-index: 5;
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 0 16px; pointer-events: none;
+    padding: 0 calc(16px + var(--hud-pr, 0px)) 0 calc(16px + var(--hud-pl, 0px)); pointer-events: none;
   }
   #hud > * { pointer-events: auto; }
   .stats { display: flex; gap: 10px; align-items: center; font-size: 14px; }
@@ -162,25 +160,39 @@
     background: var(--panel); border: 1px solid var(--line); white-space: nowrap;
   }
   .dot { width: 10px; height: 10px; border-radius: 50%; }
-  .help-btn { width: 36px; height: 36px; padding: 0; border-radius: 50%; font-weight: 700; }
-
-  /* ---------- Upgrade panel ---------- */
-  #panel {
-    position: fixed; left: 50%; bottom: calc(16px + var(--safe-b)); transform: translateX(-50%); z-index: 5;
-    background: #141b2df2; border: 1px solid var(--line); border-radius: 14px;
-    padding: 8px 12px; width: 600px; max-width: calc(100vw - 32px);
-    box-shadow: 0 10px 30px #0008;
+  .icon-btn {
+    width: 38px; height: 38px; padding: 0; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px;
   }
-  .phead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
-  #pTitle { font-weight: 700; font-size: 15px; }
-  #pInfo { color: var(--muted); font-size: 13px; }
-  #unrouteBtn { margin-left: auto; padding: 3px 10px; font-size: 13px; border-color: #ff4d5e66; color: #ffb3ba; }
-  .pbtns { display: flex; gap: 8px; flex-wrap: wrap; }
-  .pbtns button { flex: 1; min-width: 200px; text-align: left; padding: 6px 12px; }
-  .pbtns button .t { display: block; font-weight: 600; font-size: 14px; }
-  .pbtns button .s { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .icon-btn svg { width: 20px; height: 20px; }
+  #leaveBtn { color: #ffb3ba; border-color: #ff4d5e55; }
+
+  /* ---------- Панель улучшений: полоска внизу по центру, только когда выбрана башня ---------- */
+  #panel {
+    position: fixed; left: 50%; bottom: calc(12px + var(--safe-b)); transform: translateX(-50%); z-index: 5;
+    display: flex; align-items: stretch; gap: 8px; max-width: calc(100vw - 16px);
+    background: rgba(17, 23, 40, 0.9); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border: 1px solid var(--line); border-radius: 16px; padding: 6px;
+    box-shadow: 0 10px 30px #0009;
+  }
+  .phead { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 2px 8px; min-width: 0; max-width: 240px; }
+  #pTitle { font-weight: 700; font-size: 14px; white-space: nowrap; }
+  #pInfo { color: var(--muted); font-size: 11.5px; line-height: 1.3; }
+  .pbtns { display: flex; gap: 6px; }
+  .pbtns button {
+    display: flex; flex-direction: column; justify-content: center; text-align: left;
+    padding: 6px 12px; border-radius: 12px; min-width: 150px;
+  }
+  .pbtns button .t { font-weight: 700; font-size: 13px; white-space: nowrap; }
+  .pbtns button .s { font-size: 11px; color: var(--muted); white-space: nowrap; margin-top: 1px; }
+  #upProd { border-color: #ffc94d55; }
+  #upDef { border-color: #6ee7ff55; }
   #upProd .t::before { content: '⚒ '; color: var(--gold); }
   #upDef .t::before { content: '🛡 '; }
+  #unrouteBtn {
+    padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;
+    border-color: #ff4d5e66; color: #ffb3ba; white-space: nowrap;
+  }
 
   /* ---------- Overlay ---------- */
   #overlay {
@@ -195,40 +207,38 @@
   .ov-box p { margin: 0 0 20px; color: var(--muted); }
   .ov-box .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
-  #helpModal .ov-box { text-align: left; max-width: 560px; }
-  #helpModal h2 { font-size: 24px; }
+  #helpModal .ov-box { text-align: left; max-width: 560px; position: relative; max-height: calc(100vh - 32px); overflow-y: auto; }
+  #helpModal h2 { font-size: 24px; padding-right: 40px; }
+  .close-x {
+    position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; padding: 0; border-radius: 50%;
+    font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
   #toast {
     position: fixed; top: calc(64px + var(--safe-t)); left: 50%; transform: translateX(-50%); z-index: 6;
     background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
     padding: 8px 14px; font-size: 14px; pointer-events: none; transition: opacity .3s;
   }
 
-  /* ---------- Телефон в горизонтальном положении: поле слева, панель справа ---------- */
-  body.side #hud {
-    top: calc(8px + var(--safe-t)); right: calc(8px + var(--safe-r)); left: auto; bottom: auto; width: var(--side); height: auto;
-    flex-direction: column; align-items: stretch; gap: 6px; padding: 0;
-  }
-  body.side .hud-btns { order: -1; }
-  body.side .hud-btns button { flex: 1; padding: 7px 6px; font-size: 14px; height: auto; border-radius: 10px; }
-  body.side .stats { flex-direction: column; align-items: stretch; gap: 4px; font-size: 12px; }
-  body.side .chip { padding: 4px 10px; }
-  body.side #panel {
-    left: auto; right: calc(8px + var(--safe-r)); bottom: calc(8px + var(--safe-b)); transform: none;
-    width: var(--side); max-width: none; padding: 8px;
-  }
-  body.side .phead { flex-direction: column; align-items: stretch; gap: 2px; margin-bottom: 5px; }
-  body.side #pTitle { font-size: 14px; }
-  body.side #pInfo { font-size: 11px; line-height: 1.35; }
-  body.side #unrouteBtn { margin: 4px 0 0; padding: 6px 8px; }
-  body.side .pbtns { flex-direction: column; gap: 5px; }
-  body.side .pbtns button { min-width: 0; padding: 6px 8px; }
-  body.side .pbtns button .t { font-size: 12px; }
-  body.side .pbtns button .s { font-size: 11px; }
-  body.side #toast { top: calc(8px + var(--safe-t)); left: calc((100vw - var(--side)) / 2); }
-  body.side #panel kbd, body.touch kbd { display: none; }
-  body.side .ov-box { padding: 16px 20px; max-height: calc(100vh - 24px); overflow-y: auto; }
-  body.side .ov-box h2 { font-size: 26px; }
-  body.side .ov-box p { margin-bottom: 12px; }
+  /* ---------- Низкий экран (телефон горизонтально): тонкая верхняя строка, поле на весь экран ---------- */
+  body.compact #hud { height: 40px; padding: 0 calc(8px + var(--hud-pr, 0px)) 0 calc(8px + var(--hud-pl, 0px)); gap: 8px; }
+  body.compact .stats { gap: 5px; font-size: 12px; }
+  body.compact .chip { padding: 3px 9px; gap: 5px; }
+  body.compact .dot { width: 8px; height: 8px; }
+  body.compact .icon-btn { width: 34px; height: 34px; font-size: 15px; }
+  body.compact .icon-btn svg { width: 18px; height: 18px; }
+  body.compact #panel { bottom: calc(6px + var(--safe-b)); padding: 4px; gap: 5px; border-radius: 14px; }
+  body.compact .phead { max-width: 175px; padding: 1px 6px; }
+  body.compact #pTitle { font-size: 12.5px; }
+  body.compact #pInfo { font-size: 10.5px; }
+  body.compact .pbtns button { min-width: 0; padding: 4px 9px; border-radius: 10px; }
+  body.compact .pbtns button .t { font-size: 12px; }
+  body.compact .pbtns button .s { font-size: 10px; }
+  body.compact #unrouteBtn { padding: 4px 9px; font-size: 12px; border-radius: 10px; }
+  body.compact #toast { top: calc(46px + var(--hud-t, var(--safe-t))); font-size: 13px; }
+  body.compact #panel kbd, body.touch kbd { display: none; }
+  body.compact .ov-box { padding: 16px 20px; max-height: calc(100vh - 24px); overflow-y: auto; }
+  body.compact .ov-box h2 { font-size: 26px; }
+  body.compact .ov-box p { margin-bottom: 12px; }
 
   /* Подсказка повернуть телефон (в приложении ориентация и так горизонтальная) */
   #rotateHint {
@@ -251,9 +261,12 @@
   <div class="stats" id="stats"></div>
   <div class="buffs" id="buffs"></div>
   <div class="hud-btns" style="display:flex;gap:8px">
-    <button id="allBtn" title="Выбрать все свои башни (A)">Все</button>
-    <button class="help-btn" id="helpBtn" title="Как играть">?</button>
-    <button id="leaveBtn" title="Покинуть игру (Esc)">Выйти</button>
+    <button class="icon-btn" id="helpBtn" title="Как играть" aria-label="Как играть">?</button>
+    <button class="icon-btn" id="leaveBtn" title="Выйти в меню (Esc)" aria-label="Выйти в меню">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>
+      </svg>
+    </button>
   </div>
 </div>
 
@@ -267,12 +280,12 @@
 <div id="panel" class="hidden">
   <div class="phead">
     <span id="pTitle"></span><span id="pInfo"></span>
-    <button id="unrouteBtn" class="hidden">✕ Убрать путь <kbd>X</kbd></button>
   </div>
   <div class="pbtns" id="pBtns">
     <button id="upProd"><span class="t"></span><span class="s"></span></button>
     <button id="upDef"><span class="t"></span><span class="s"></span></button>
   </div>
+  <button id="unrouteBtn" class="hidden">✕ Путь <kbd>X</kbd></button>
 </div>
 
 <div id="toast" class="hidden"></div>
@@ -360,6 +373,7 @@
 <!-- Help -->
 <div id="helpModal" class="hidden" style="position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:#0b0f19b0;padding:16px">
   <div class="ov-box">
+    <button class="close-x" id="helpX" aria-label="Закрыть">✕</button>
     <h2>Как играть</h2>
     <div class="rules" style="margin:0;border:none;padding:0;background:none" id="helpText"></div>
     <div class="row" style="margin-top:16px"><button class="primary" id="helpClose">Понятно</button></div>
@@ -372,9 +386,12 @@
 // =====================================================================
 //  Константы и баланс
 // =====================================================================
-const W = 1200, H = 720;
-// Сетевая игра временно скрыта из меню (код остаётся рабочим); true — вернуть
-const NETWORK_ENABLED = false;
+const W = 1200;
+let H = 720;             // высота карты: в одиночной игре подстраивается под экран (worldHeightForScreen), в сети — 720
+// Сетевая игра включена в Telegram-версии; в браузере, Android и Windows пока скрыта из меню (код рабочий)
+const NETWORK_ENABLED = /tgWebApp/.test(location.hash + location.search);
+// Ссылка на игру в Telegram: приглашение в комнату — ?startapp=КОД (друг сразу попадает в комнату)
+const TG_APP_LINK = 'https://t.me/pleasure_union_bot/play';
 const PEER_PREFIX = 'bitva-bashen-v1-';
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -449,13 +466,13 @@ const IS_TOUCH = !!window.AndroidApp || matchMedia('(pointer: coarse)').matches;
 // Запущено внутри Windows-приложения (WebView2): есть F11 и кнопка выхода из игры
 const DESKTOP_APP = !!(window.chrome && window.chrome.webview);
 const RULES_CONTROLS = IS_TOUCH ? `
-    <li><b>Выбрать</b> свою башню: коснитесь её. Долгое нажатие добавляет к выбору ещё башни, кнопка «Все» выбирает все.</li>
+    <li><b>Выбрать</b> свою башню: коснитесь её. Долгое нажатие добавляет к выбору ещё башни.</li>
     <li><b>Проложить путь:</b> протяните пальцем от своей башни к цели. Можно и так: выбрать башню и коснуться чужой.
       Путь прокладывается один раз, и дальше войска сами идут по нему (${CFG.flow} в секунду), пока вы его не уберёте.
       Можно вести путь и к своей башне, чтобы подкреплять её с тыла. У каждой башни только один путь: новый заменяет старый.</li>
     <li><b>Убрать путь:</b> коснитесь его линии, нажмите «Убрать путь» в панели башни или проведите тот же путь ещё раз.</li>
-    <li>Кнопка «Выйти» или «Назад» на телефоне возвращает в главное меню.</li>
-    <li><b>Улучшения</b> оплачиваются войсками из самой башни. Выберите одну башню и нажмите в панели справа:
+    <li>Иконка выхода справа вверху или «Назад» на телефоне возвращает в главное меню.</li>
+    <li><b>Улучшения</b> оплачиваются войсками из самой башни. Выберите одну башню и нажмите в панели внизу:
       <br><b>Казарма</b>: башня начинает производить войска.
       <br><b>Форт</b>: защитники крепче, а башня стреляет по вражеским войскам рядом.
       <br>Обычная башня может стать либо казармой, либо фортом. Главное здание может улучшать и то, и другое.</li>` : `
@@ -464,7 +481,7 @@ const RULES_CONTROLS = IS_TOUCH ? `
       Путь прокладывается один раз, и дальше войска сами идут по нему (${CFG.flow} в секунду), пока вы его не уберёте.
       Можно вести путь и к своей башне, чтобы подкреплять её с тыла. У каждой башни только один путь: новый заменяет старый.</li>
     <li><b>Убрать путь:</b> кликните по линии пути, нажмите <kbd>X</kbd> на выбранной башне или проведите тот же путь ещё раз.</li>
-    <li><kbd>Esc</kbd> или кнопка «Выйти» возвращает в главное меню.${DESKTOP_APP ? ' <kbd>F11</kbd> — полноэкранный режим.' : ''}</li>
+    <li><kbd>Esc</kbd> или иконка выхода справа вверху возвращает в главное меню.${DESKTOP_APP ? ' <kbd>F11</kbd> — полноэкранный режим.' : ''}</li>
     <li><b>Улучшения</b> оплачиваются войсками из самой башни. Выберите одну башню, затем:
       <br><kbd>Q</kbd> <b>Казарма</b>: башня начинает производить войска.
       <br><kbd>E</kbd> <b>Форт</b>: защитники крепче, а башня стреляет по вражеским войскам рядом.
@@ -602,16 +619,17 @@ function genDuelMap() {
 
 // Случайная карта на 2–4 игрока. Базы игроков всегда идут первыми: nodes[p] — база игрока p.
 // Игрок-человек (0) стоит слева; у каждой базы рядом есть пара несложных башен.
-const BASE_SPOTS = {
+// (функция, а не таблица: высота карты H меняется от игры к игре)
+const baseSpots = players => ({
   2: [[110, H / 2], [W - 110, H / 2]],
-  3: [[110, H / 2], [W - 140, 120], [W - 140, H - 120]],
-  4: [[130, 120], [W - 130, H - 120], [W - 130, 120], [130, H - 120]],
-};
+  3: [[110, H / 2], [W - 140, 125], [W - 140, H - 110]],
+  4: [[130, 125], [W - 130, H - 110], [W - 130, 125], [130, H - 110]],
+})[players];
 function genArenaMap(players, towerCount, enemyBonus) {
   const nodes = [];
   const rnd = (a, b) => a + Math.random() * (b - a);
   const flipY = Math.random() < 0.5;
-  BASE_SPOTS[players].forEach(([x, y], p) => {
+  baseSpots(players).forEach(([x, y], p) => {
     x += rnd(-25, 25); y += rnd(-35, 35);
     if (flipY) y = H - y;
     makeNode(nodes, Math.min(W - 70, Math.max(70, x)), Math.min(H - 70, Math.max(105, y)),
@@ -1011,7 +1029,7 @@ function hostGame() {
         <span class="code">${code}</span>
         <span style="display:flex;gap:6px">
           <button id="copyBtn">Копировать</button>
-          ${window.AndroidApp ? '<button id="shareBtn">Поделиться</button>' : ''}
+          ${window.AndroidApp || IN_TELEGRAM ? `<button id="shareBtn" class="primary">${IN_TELEGRAM ? 'Пригласить' : 'Поделиться'}</button>` : ''}
         </span>
       </div>`;
     $('copyBtn').onclick = () => {
@@ -1020,7 +1038,16 @@ function hostGame() {
         () => { $('copyBtn').textContent = 'Скопировано'; },
         () => { $('copyBtn').textContent = 'Не вышло'; });
     };
-    if ($('shareBtn')) $('shareBtn').onclick = () => AndroidApp.share(`Заходи в «Битву башен»! Код комнаты: ${code}`);
+    if ($('shareBtn')) $('shareBtn').onclick = () => {
+      if (IN_TELEGRAM && tg) {
+        // Telegram предложит выбрать чат; по ссылке друг откроет игру и сразу зайдёт в эту комнату
+        const link = `${TG_APP_LINK}?startapp=${code}`;
+        const text = `Сыграем в «Битву башен»? Жми на ссылку, чтобы зайти в мою комнату (код ${code})`;
+        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
+      } else if (window.AndroidApp) {
+        AndroidApp.share(`Заходи в «Битву башен»! Код комнаты: ${code}`);
+      }
+    };
     setStatus($('hostStatus'), 'Ждём соперника… Отправьте ему этот код.', 'ok');
   });
   p.on('connection', c => {
@@ -1088,6 +1115,7 @@ function onGuestData(d) {
   if (d.t === 'leave') { onOpponentLeft(); return; }
   if (d.t === 'init') {
     mode = 'guest'; me = 1;
+    H = 720; resize();
     game = {
       nodes: d.nodes.map((n, i) => ({ id: i, x: n[0], y: n[1], r: n[2], type: n[3] ? 'base' : 'tower', owner: -1, units: 0, prod: 0, def: 0, route: -1, booster: -1, style: n[4] || 0 })),
       units: [], countdown: 3, over: null, players: 2, alive: [true, true], bots: [],
@@ -1205,10 +1233,13 @@ function startMatch() {
     const c = matchCfg;
     const lp = c.kind === 'level' ? levelParams(c.level) : { enemies: c.enemies, diff: c.diff, towers: 10 + 2 * c.enemies, bonus: 0 };
     const towers = lp.towers + Math.floor(Math.random() * 4) - 1;        // каждый раз немного по-разному
+    H = worldHeightForScreen();                    // карта под форму экрана
     game = newGame({ players: lp.enemies + 1, towers, bonus: lp.bonus, diffs: Array(lp.enemies).fill(lp.diff) });
   } else {
+    H = 720;                                       // в сети у обоих одна и та же карта
     game = newGame({ duel: true });
   }
+  resize();
   fx = []; netEvents = []; selected.clear();
   if (mode === 'host' && conn) {
     conn.send({ t: 'init', nodes: game.nodes.map(n => [n.x, n.y, n.r, n.type === 'base' ? 1 : 0, n.style]) });
@@ -1341,29 +1372,33 @@ let dpr = 1, scale = 1, offX = 0, offY = 0;
 const flip = () => mode === 'guest';           // гость видит свою базу слева
 const X = x => (flip() ? W - x : x);
 
-// На телефоне в горизонтальном положении поле слева, панели в колонке справа
-let sideMode = false;
+// Поле занимает весь экран под верхней строкой; панель улучшений всплывает поверх низа поля.
+// На низком экране (телефон горизонтально) — компактный режим с тонкой верхней строкой.
+// В Telegram на весь экран верхняя строка стоит в полосе между кнопками Telegram (hudInBand).
+let compact = false, hudInBand = false;
 let safe = { t: 0, r: 0, b: 0, l: 0 };       // безопасные отступы (Telegram на весь экран), в CSS-пикселях
+function layoutBox() {
+  const vw = innerWidth - safe.l - safe.r, vh = innerHeight - safe.t - safe.b;
+  const isCompact = vh < 600;
+  const top = hudInBand ? 4 : isCompact ? 44 : 60;
+  const bottom = isCompact ? 6 : 72, side = isCompact ? 8 : 16;
+  return { vw, vh, isCompact, top, bottom, side, availW: vw - side * 2, availH: vh - top - bottom };
+}
 function resize() {
   dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(innerWidth * dpr);
   canvas.height = Math.round(innerHeight * dpr);
-  const vw = innerWidth - safe.l - safe.r, vh = innerHeight - safe.t - safe.b;
-  sideMode = vw > vh && vh < 600;
-  document.body.classList.toggle('side', sideMode);
-  if (sideMode) {
-    const sideW = Math.round(Math.min(250, Math.max(180, vw * 0.26)));
-    document.body.style.setProperty('--side', sideW + 'px');
-    const availW = vw - sideW - 24, availH = vh - 16;
-    scale = Math.min(availW / W, availH / H);
-    offX = safe.l + 8 + (availW - W * scale) / 2;
-    offY = safe.t + 8 + (availH - H * scale) / 2;
-  } else {
-    const top = 60, bottom = 104, side = 16;   // снизу место под панель улучшений
-    scale = Math.min((vw - side * 2) / W, (vh - top - bottom) / H);
-    offX = safe.l + (vw - W * scale) / 2;
-    offY = safe.t + top + (vh - top - bottom - H * scale) / 2;
-  }
+  const L = layoutBox();
+  compact = L.isCompact;
+  document.body.classList.toggle('compact', compact);
+  scale = Math.min(L.availW / W, L.availH / H);
+  offX = safe.l + (L.vw - W * scale) / 2;
+  offY = safe.t + L.top + (L.availH - H * scale) / 2;
+}
+// Высота карты под форму экрана: на широком экране карта шире и ниже, поэтому всё крупнее
+function worldHeightForScreen() {
+  const L = layoutBox();
+  return Math.round(Math.min(720, Math.max(540, W * L.availH / L.availW)));
 }
 window.addEventListener('resize', resize);
 resize();
@@ -2250,7 +2285,7 @@ function updatePanel() {
     if (key === panelKey) return;
     panelKey = key;
     $('pTitle').textContent = `Выбрано башен: ${selected.size}`;
-    $('pInfo').textContent = `Войск: ${sum} · Путей: ${routes}. Перетащите к цели, чтобы проложить пути.`;
+    $('pInfo').textContent = `Войск ${sum} · путей ${routes} · протяните к цели`;
     $('unrouteBtn').classList.toggle('hidden', routes === 0);
     $('pBtns').classList.add('hidden');
     return;
@@ -2272,25 +2307,25 @@ function updatePanel() {
 
   const rate = effRate(game, n);
   $('pInfo').textContent =
-    `Войск: ${u} / ${capOf(n)} · Производство: ${rate ? rate.toFixed(1) + '/с' : 'нет'} · Прочность ×${CFG.strength[n.def]}`;
+    `Войск ${u}/${capOf(n)} · ${rate ? '+' + rate.toFixed(1) + '/с' : 'без производства'} · прочность ×${CFG.strength[n.def]}`;
 
   const setBtn = (btn, b) => {
     const lv = n[b], t = btn.querySelector('.t'), s = btn.querySelector('.s');
     const name = b === 'prod' ? 'Казарма' : 'Форт';
     if (!canBranch(n, b)) {
-      t.textContent = name; s.textContent = b === 'prod' ? 'Недоступно: башня уже форт' : 'Недоступно: башня уже казарма';
+      t.textContent = name; s.textContent = b === 'prod' ? 'башня уже форт' : 'башня уже казарма';
       btn.disabled = true; return;
     }
-    if (lv >= 3) { t.textContent = `${name}: макс. уровень`; s.textContent = ''; btn.disabled = true; return; }
+    if (lv >= 3) { t.textContent = `${name} ур. 3`; s.textContent = 'максимум'; btn.disabled = true; return; }
     const cost = CFG.cost[lv];
-    t.textContent = `${name} → ур. ${lv + 1}   (${cost} войск)`;
+    t.textContent = `${name} ур. ${lv + 1}`;
     if (b === 'prod') {
       const next = n.type === 'base'
         ? (CFG.baseProd + CFG.baseProdPer * (lv + 1)) * (baseBoosted(game, n) ? BOOST_MUL : 1)
         : CFG.towerProd[lv + 1];
-      s.textContent = `Производство ${next.toFixed(1)} войск/с`;
+      s.textContent = `${cost} войск · +${next.toFixed(1)}/с`;
     } else {
-      s.textContent = `Прочность ×${CFG.strength[lv + 1]}, стрельба ${CFG.shootRate[lv + 1]}/с`;
+      s.textContent = `${cost} войск · прочность ×${CFG.strength[lv + 1]}`;
     }
     btn.disabled = u < cost;
   };
@@ -2397,7 +2432,6 @@ $('nextBtn').onclick = () => {
 };
 $('menuBtn').onclick = leaveGame;
 $('leaveBtn').onclick = openLeaveDialog;
-$('allBtn').onclick = () => { if (playing()) selectAll(); };
 
 // Кнопка «Назад» на Android: закрыть окно → открыть выход → в меню выйти из приложения.
 // Возвращает true, если нажатие обработано игрой.
@@ -2456,12 +2490,27 @@ function initTelegram() {
     const st = document.documentElement.style;
     st.setProperty('--safe-t', safe.t + 'px'); st.setProperty('--safe-r', safe.r + 'px');
     st.setProperty('--safe-b', safe.b + 'px'); st.setProperty('--safe-l', safe.l + 'px');
+    // на весь экран сверху полоса с кнопками Telegram («Назад» слева, «⌄ ⋯» справа):
+    // ставим нашу верхнюю строку в эту же полосу, между кнопками, — поле получает всю высоту
+    hudInBand = (c.top || 0) >= 36;
+    if (hudInBand) {
+      st.setProperty('--hud-t', ((a.top || 0) + Math.max(0, (c.top - 40) / 2)) + 'px');
+      st.setProperty('--hud-pl', '104px'); st.setProperty('--hud-pr', '100px');
+    } else {
+      st.removeProperty('--hud-t'); st.removeProperty('--hud-pl'); st.removeProperty('--hud-pr');
+    }
     resize();
   };
   applySafe();
   for (const ev of ['safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged', 'viewportChanged']) tg.onEvent(ev, applySafe);
   // кнопка «Назад» Telegram работает как «Назад» на Android
   tg.BackButton.onClick(() => { if (!window.androidBack()) tg.close(); });
+  // открыли по приглашению t.me/…/play?startapp=КОД — сразу заходим в комнату друга
+  const start = (tg.initDataUnsafe && tg.initDataUnsafe.start_param || '').toUpperCase();
+  if (/^[A-Z0-9]{5}$/.test(start) && !game) {
+    $('codeInput').value = start;
+    joinGame();
+  }
   // прогресс уровней из облака Telegram (общий для телефона и компьютера)
   if (tg.isVersionAtLeast('6.9')) {
     tg.CloudStorage.getItem(LEVEL_KEY, (err, v) => {
@@ -2495,6 +2544,8 @@ function tgHaptic(kind) {
 
 $('helpBtn').onclick = () => $('helpModal').classList.remove('hidden');
 $('helpClose').onclick = () => $('helpModal').classList.add('hidden');
+$('helpX').onclick = () => $('helpModal').classList.add('hidden');
+$('helpModal').addEventListener('click', e => { if (e.target === $('helpModal')) $('helpModal').classList.add('hidden'); });   // нажатие мимо окна
 
 requestAnimationFrame(frame);
 </script>
