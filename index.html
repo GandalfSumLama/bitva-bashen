@@ -134,11 +134,15 @@
   .status { font-size: 14px; color: var(--muted); min-height: 20px; }
   .status.err { color: var(--red); }
   .status.ok { color: #5fe39a; }
-  .cards { align-items: start; }               /* карточки своей высоты, не тянутся под колонку «Онлайн + статистика» */
   #diffSeg button { font-size: 12px; padding: 6px 1px; }   /* четыре сложности должны влезать целиком */
   .online-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
   .online-col > .card { flex: none; }
   body.no-net .online-col { grid-column: 1 / -1; order: 3; }   /* без онлайна статистика — строкой под карточками */
+  /* широкий экран: три карточки в ряд, статистика — полосой во всю ширину под ними (без пустоты) */
+  @media (min-width: 641px) {
+    .online-col { display: contents; }
+    #statsCard { grid-column: 1 / -1; order: 5; }
+  }
   .stats-card { gap: 10px; }
   .stats-card h2 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   .stats-note { font-size: 12px; font-weight: 400; color: var(--muted); }
