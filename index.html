@@ -399,12 +399,12 @@
     <button class="close-x" id="settingsX" aria-label="Закрыть">✕</button>
     <h2>Настройки</h2>
     <div class="field">Вид башен
-      <div class="seg" id="towerStyleSeg"><button data-v="art">Картинки</button><button data-v="neon">Неон</button><button data-v="classic">Классика</button></div>
+      <div class="seg" id="towerStyleSeg"><button data-v="art">Реализм</button><button data-v="neon">Неон</button><button data-v="classic">Классика</button></div>
     </div>
     <div class="field">Вид бойцов
       <div class="seg" id="unitStyleSeg"><button data-v="art">Солдатики</button><button data-v="classic">Точки</button></div>
     </div>
-    <p class="settings-note">Неон — светящиеся контуры башен цвета своей стороны. Классика — первый вариант игры: кружки с числом внутри и восьмиугольные главные здания.</p>
+    <p class="settings-note">Реализм — нарисованные башни и форты. Неон — светящиеся контуры башен цвета своей стороны. Классика — первый вариант игры: кружки с числом внутри и восьмиугольные главные здания.</p>
   </div>
 </div>
 
@@ -545,7 +545,7 @@ const RULES_HTML = `
       ${BOOSTERS.map(b => `<br>${b.icon} <b>${b.name}</b>${b.secs ? ` (${b.secs} с)` : ''}: ${b.text}.`).join('')}</li>
     ${RULES_CONTROLS}
     <li><b>Главное здание</b> может вести сразу <b>два пути</b>, по каждому идёт полный поток войск. Третий путь заменяет самый старый.</li>
-    <li><b>Настройки</b> (шестерёнка): вид башен и бойцов — картинки или классика, как в первой версии игры.</li>
+    <li><b>Настройки</b> (шестерёнка): вид башен — реализм, неон или классика (как в первой версии игры), вид бойцов — солдатики или точки.</li>
     <li>Вражеские отряды при встрече уничтожают друг друга один к одному. Захваченная башня теряет один уровень улучшения.</li>
   </ul>`;
 
