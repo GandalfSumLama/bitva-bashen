@@ -31,7 +31,7 @@
     user-select: none; -webkit-user-select: none;
     overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
   }
-  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   button {
     font: inherit; color: var(--text); cursor: pointer;
     background: var(--panel2); border: 1px solid var(--line);
@@ -1470,17 +1470,24 @@ const X = x => (flip() ? W - x : x);
 // В Telegram на весь экран верхняя строка стоит в полосе между кнопками Telegram (hudInBand).
 let compact = false, hudInBand = false;
 let safe = { t: 0, r: 0, b: 0, l: 0 };       // безопасные отступы (Telegram на весь экран), в CSS-пикселях
+// Настоящий размер экрана игры — по самому холсту (он растянут на всё окно).
+// innerWidth/innerHeight на некоторых телефонах (например, iPhone 12 Pro в Telegram)
+// после поворота остаются старыми — тогда поле было крошечным и растянутым.
+const viewW = () => canvas.clientWidth || document.documentElement.clientWidth || innerWidth;
+const viewH = () => canvas.clientHeight || document.documentElement.clientHeight || innerHeight;
+let lastViewW = 0, lastViewH = 0;
 function layoutBox() {
-  const vw = innerWidth - safe.l - safe.r, vh = innerHeight - safe.t - safe.b;
+  let vw = viewW() - safe.l - safe.r, vh = viewH() - safe.t - safe.b;
   const isCompact = vh < 600;
   const top = hudInBand ? 4 : isCompact ? 44 : 60;
   const bottom = isCompact ? 6 : 16, side = isCompact ? 8 : 16;
   return { vw, vh, isCompact, top, bottom, side, availW: vw - side * 2, availH: vh - top - bottom };
 }
 function resize() {
-  dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.round(innerWidth * dpr);
-  canvas.height = Math.round(innerHeight * dpr);
+  dpr = Math.min(2, window.devicePixelRatio || 1);   // ×3-экраны рисуем в ×2: разницы не видно, а быстрее
+  lastViewW = viewW(); lastViewH = viewH();
+  canvas.width = Math.round(lastViewW * dpr);
+  canvas.height = Math.round(lastViewH * dpr);
   const L = layoutBox();
   compact = L.isCompact;
   document.body.classList.toggle('compact', compact);
@@ -1491,9 +1498,13 @@ function resize() {
 // Высота карты под форму экрана: на широком экране карта шире и ниже, поэтому всё крупнее
 function worldHeightForScreen() {
   const L = layoutBox();
-  return Math.round(Math.min(720, Math.max(470, W * L.availH / L.availW)));
+  // телефон пока вертикально (игра попросит повернуть) — считаем карту под горизонтальный экран
+  const ratio = L.vw < L.vh ? L.availW / L.availH : L.availH / L.availW;
+  return Math.round(Math.min(720, Math.max(470, W * ratio)));
 }
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 250));
+if (window.visualViewport) visualViewport.addEventListener('resize', resize);
 resize();
 
 // Размер шрифта в координатах карты, но не мельче minPx настоящих пикселей
@@ -1672,6 +1683,8 @@ function frame(now) {
   lastFrame = now;
   requestAnimationFrame(frame);
   syncTgBack();
+  // размер окна поменялся без события resize (поворот на iPhone и т.п.) — пересчитываем
+  if (viewW() !== lastViewW || viewH() !== lastViewH) resize();
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#0b0f19';
