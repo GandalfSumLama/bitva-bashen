@@ -323,7 +323,7 @@
         <div class="status" id="hostStatus"></div>
         <div class="or"><span>или</span></div>
         <div class="join-row">
-          <input class="code-input" id="codeInput" maxlength="5" placeholder="КОД" autocomplete="off" spellcheck="false">
+          <input class="code-input" id="codeInput" maxlength="4" placeholder="0000" inputmode="numeric" pattern="[0-9]*" autocomplete="off" spellcheck="false">
           <button class="primary" id="joinBtn">Войти</button>
         </div>
         <div class="status" id="joinStatus"></div>
@@ -422,7 +422,7 @@ const NETWORK_ENABLED = /tgWebApp/.test(location.hash + location.search);
 // Ссылка на игру в Telegram: приглашение в комнату — ?startapp=КОД (друг сразу попадает в комнату)
 const TG_APP_LINK = 'https://t.me/pleasure_union_bot/play';
 const PEER_PREFIX = 'bitva-bashen-v1-';
-const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CODE_LEN = 4;      // код комнаты — 4 цифры, его легко продиктовать и ввести
 
 const COL = {
   '-1': { main: '#8a93a6', dark: '#232836', light: '#c4cad6' },
@@ -1050,7 +1050,7 @@ function botStep(g, dt, bot) {
 // =====================================================================
 function randCode() {
   let s = '';
-  for (let i = 0; i < 5; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  for (let i = 0; i < CODE_LEN; i++) s += Math.floor(Math.random() * 10);
   return s;
 }
 
@@ -1104,8 +1104,10 @@ function hostGame() {
     if ($('shareBtn')) $('shareBtn').onclick = () => {
       if (IN_TELEGRAM && tg) {
         // Telegram предложит выбрать чат; по ссылке друг откроет игру и сразу зайдёт в эту комнату
-        const link = `${TG_APP_LINK}?startapp=${code}`;
-        const text = `Сыграем в «Битву башен»? Жми на ссылку, чтобы зайти в мою комнату (код ${code})`;
+        const link = `${TG_APP_LINK}?startapp=room_${code}`;
+        // код крупно в тексте: если ссылка откроет только бота или галерею, друг введёт его сам
+        const text = `🏰 Сыграем в «Битву башен»? Код моей комнаты: ${code}\n` +
+          `Жми на ссылку. Если откроется меню — нажми «Онлайн», введи ${code} и «Войти».`;
         tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
       } else if (window.AndroidApp) {
         AndroidApp.share(`Заходи в «Битву башен»! Код комнаты: ${code}`);
@@ -1138,8 +1140,8 @@ function hostGame() {
 
 function joinGame() {
   if (!peerAvailable()) return;
-  const code = $('codeInput').value.trim().toUpperCase();
-  if (code.length !== 5) { setStatus($('joinStatus'), 'Код состоит из 5 символов.', 'err'); return; }
+  const code = $('codeInput').value.replace(/\D/g, '');
+  if (code.length !== CODE_LEN) { setStatus($('joinStatus'), `Код — это ${CODE_LEN} цифры.`, 'err'); return; }
   $('joinBtn').disabled = true;
   $('hostBtn').disabled = true;
   setStatus($('joinStatus'), 'Подключение…');
@@ -2626,7 +2628,7 @@ $('helpText').innerHTML = RULES_HTML;
 $('hostBtn').onclick = hostGame;
 $('joinBtn').onclick = joinGame;
 $('codeInput').addEventListener('keydown', e => { if (e.key === 'Enter') joinGame(); });
-$('codeInput').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+$('codeInput').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, CODE_LEN); });
 // ---------- Одиночная игра: тренировка и уровни ----------
 function bindSeg(id, onPick) {
   for (const b of $(id).querySelectorAll('button')) {
@@ -2743,10 +2745,10 @@ function initTelegram() {
   for (const ev of ['safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged', 'viewportChanged']) tg.onEvent(ev, applySafe);
   // кнопка «Назад» Telegram работает как «Назад» на Android
   tg.BackButton.onClick(() => { if (!window.androidBack()) { if (window.PU && PU.inGallery) PU.exit(); else tg.close(); } });
-  // открыли по приглашению t.me/…/play?startapp=КОД — сразу заходим в комнату друга
-  const start = (tg.initDataUnsafe && tg.initDataUnsafe.start_param || '').toUpperCase();
-  if (/^[A-Z0-9]{5}$/.test(start) && !game) {
-    $('codeInput').value = start;
+  // открыли по приглашению — сразу заходим в комнату друга
+  const invite = inviteCode();
+  if (invite && !game) {
+    $('codeInput').value = invite;
     joinGame();
   }
   // прогресс уровней из облака Telegram (общий для телефона и компьютера)
@@ -2760,6 +2762,23 @@ function initTelegram() {
       renderLevelCard();
     });
   }
+}
+
+// Код комнаты из приглашения. Telegram кладёт его в start_param (ссылка ?startapp=…),
+// а если игра открыта через галерею или по обычной ссылке — ищем его в адресе страницы
+// (?room=, #room=, tgWebAppStartParam, startapp). Подходит «1234», «room_1234», «bb-1234».
+function inviteCode() {
+  const qs = new URLSearchParams(location.search), hs = new URLSearchParams(location.hash.slice(1));
+  const sources = [
+    tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param,
+    qs.get('room'), hs.get('room'), qs.get('tgWebAppStartParam'), hs.get('tgWebAppStartParam'),
+    qs.get('startapp'), hs.get('startapp'), qs.get('start_param'),
+  ];
+  for (const s of sources) {
+    const m = String(s || '').match(/^(?:[a-z]+[_-]?)?(\d{4})$/i);
+    if (m) return m[1];
+  }
+  return null;
 }
 
 // «Назад» Telegram видна в игре и в открытых окнах; в меню Telegram показывает свою кнопку закрытия
