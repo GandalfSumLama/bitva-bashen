@@ -177,33 +177,34 @@
   .icon-btn svg { width: 20px; height: 20px; }
   #leaveBtn { color: #ffb3ba; border-color: #ff4d5e55; }
 
-  /* ---------- Панель улучшений: полоска внизу по центру, только когда выбрана башня ---------- */
+  /* ---------- Значки улучшений: маленькая панелька прямо над выбранной башней ---------- */
   #panel {
-    position: fixed; left: 50%; bottom: calc(12px + var(--safe-b)); transform: translateX(-50%); z-index: 5;
-    display: flex; align-items: stretch; gap: 8px; max-width: calc(100vw - 16px);
-    background: rgba(17, 23, 40, 0.9); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-    border: 1px solid var(--line); border-radius: 16px; padding: 6px;
-    box-shadow: 0 10px 30px #0009;
+    position: fixed; left: 0; top: 0; transform: translateX(-50%); z-index: 5;
+    display: flex; gap: 8px; padding: 5px 6px 8px;
+    background: rgba(17, 23, 40, 0.88); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 6px 18px #0009;
   }
-  .phead { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 2px 8px; min-width: 0; max-width: 240px; }
-  #pTitle { font-weight: 700; font-size: 14px; white-space: nowrap; }
-  #pInfo { color: var(--muted); font-size: 11.5px; line-height: 1.3; }
-  .pbtns { display: flex; gap: 6px; }
-  .pbtns button {
-    display: flex; flex-direction: column; justify-content: center; text-align: left;
-    padding: 6px 12px; border-radius: 12px; min-width: 150px;
+  .tb-btn {
+    position: relative; width: 44px; height: 44px; padding: 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 21px; line-height: 1;
+    border-width: 2px;
   }
-  .pbtns button .t { font-weight: 700; font-size: 13px; white-space: nowrap; }
-  .pbtns button .s { font-size: 11px; color: var(--muted); white-space: nowrap; margin-top: 1px; }
-  #upProd { border-color: #ffc94d55; }
-  #upDef { border-color: #6ee7ff55; }
-  #upProd .t::before { content: '⚒ '; color: var(--gold); }
-  #upDef .t::before { content: '🛡 '; }
-  #panel.at-top { bottom: auto !important; }   /* иначе компактный режим тянет панель до низа */
-  #unrouteBtn {
-    padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;
-    border-color: #ff4d5e66; color: #ffb3ba; white-space: nowrap;
+  .tb-btn.prod { border-color: #ffc94d99; }
+  .tb-btn.def { border-color: #6ee7ff99; }
+  .tb-btn.route { border-color: #ff4d5e99; color: #ffb3ba; font-size: 18px; font-weight: 800; }
+  .tb-btn.off { opacity: .42; }
+  .tb-btn .cost {
+    position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+    font: 800 10.5px/15px Rubik, sans-serif; padding: 0 5px; border-radius: 8px; white-space: nowrap;
+    background: #0b0f19; border: 1px solid var(--line); color: var(--text);
   }
+  .tb-btn .lvl {
+    position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; border-radius: 9px;
+    font: 800 10.5px/17px Rubik, sans-serif; color: #0b0f19; text-align: center;
+  }
+  .tb-btn.prod .lvl { background: var(--gold); }
+  .tb-btn.def .lvl { background: var(--cyan); }
+  .tb-btn .lvl:empty { display: none; }
 
   /* ---------- Overlay ---------- */
   #overlay {
@@ -246,14 +247,6 @@
   body.compact .dot { width: 8px; height: 8px; }
   body.compact .icon-btn { width: 34px; height: 34px; font-size: 15px; }
   body.compact .icon-btn svg { width: 18px; height: 18px; }
-  body.compact #panel { bottom: calc(6px + var(--safe-b)); padding: 4px; gap: 5px; border-radius: 14px; }
-  body.compact .phead { max-width: 175px; padding: 1px 6px; }
-  body.compact #pTitle { font-size: 12.5px; }
-  body.compact #pInfo { font-size: 10.5px; }
-  body.compact .pbtns button { min-width: 0; padding: 4px 9px; border-radius: 10px; }
-  body.compact .pbtns button .t { font-size: 12px; }
-  body.compact .pbtns button .s { font-size: 10px; }
-  body.compact #unrouteBtn { padding: 4px 9px; font-size: 12px; border-radius: 10px; }
   body.compact #toast { top: calc(46px + var(--hud-t, var(--safe-t))); font-size: 13px; }
   body.compact #panel kbd, body.touch kbd { display: none; }
   body.compact .ov-box { padding: 16px 20px; max-height: calc(100vh - 24px); overflow-y: auto; }
@@ -270,6 +263,10 @@
   #rotateHint .ico { font-size: 60px; animation: rot 1.8s ease-in-out infinite; }
   @keyframes rot { 0%, 25% { transform: rotate(0); } 60%, 100% { transform: rotate(90deg); } }
   @media (orientation: portrait) and (max-width: 700px) { body.ingame #rotateHint { display: flex; } }
+  .lobby-back {
+    position: fixed; z-index: 11;
+    top: var(--hud-t, calc(12px + var(--safe-t))); left: calc(12px + var(--safe-l));
+  }
 </style>
 </head>
 <body>
@@ -299,14 +296,9 @@
 
 <!-- Upgrade panel -->
 <div id="panel" class="hidden">
-  <div class="phead">
-    <span id="pTitle"></span><span id="pInfo"></span>
-  </div>
-  <div class="pbtns" id="pBtns">
-    <button id="upProd"><span class="t"></span><span class="s"></span></button>
-    <button id="upDef"><span class="t"></span><span class="s"></span></button>
-  </div>
-  <button id="unrouteBtn" class="hidden">✕ Путь <kbd>X</kbd></button>
+  <button id="upProd" class="tb-btn prod" aria-label="Казарма">⚒<span class="lvl"></span><span class="cost"></span></button>
+  <button id="upDef" class="tb-btn def" aria-label="Форт">🛡<span class="lvl"></span><span class="cost"></span></button>
+  <button id="unrouteBtn" class="tb-btn route" aria-label="Убрать путь" title="Убрать путь (X)">✕</button>
 </div>
 
 <div id="toast" class="hidden"></div>
@@ -314,6 +306,7 @@
 
 <!-- Lobby -->
 <div id="lobby">
+  <button class="icon-btn lobby-back" id="puBack" style="display:none" title="В галерею" aria-label="В галерею">←</button>
   <button class="icon-btn settings-btn lobby-gear" title="Настройки" aria-label="Настройки"></button>
   <div class="lobby-box">
     <div class="logo">
@@ -397,12 +390,12 @@
     <button class="close-x" id="settingsX" aria-label="Закрыть">✕</button>
     <h2>Настройки</h2>
     <div class="field">Вид башен
-      <div class="seg" id="towerStyleSeg"><button data-v="art">Картинки</button><button data-v="classic">Классика</button></div>
+      <div class="seg" id="towerStyleSeg"><button data-v="art">Картинки</button><button data-v="neon">Неон</button><button data-v="classic">Классика</button></div>
     </div>
     <div class="field">Вид бойцов
       <div class="seg" id="unitStyleSeg"><button data-v="art">Солдатики</button><button data-v="classic">Точки</button></div>
     </div>
-    <p class="settings-note">Классика — первый вариант игры: кружки с числом внутри и восьмиугольные главные здания.</p>
+    <p class="settings-note">Неон — светящиеся контуры башен цвета своей стороны. Классика — первый вариант игры: кружки с числом внутри и восьмиугольные главные здания.</p>
   </div>
 </div>
 
@@ -500,7 +493,17 @@ const BOOSTER_CHANCE = 0.33, SPEED_MUL = 1.7, REINF_UNITS = 25;
 // Правила: на телефоне (и в приложении) — управление пальцем, на компьютере — мышью и клавишами
 const IS_TOUCH = !!window.AndroidApp || matchMedia('(pointer: coarse)').matches;
 // Запущено внутри Windows-приложения (WebView2): есть F11 и кнопка выхода из игры
-const DESKTOP_APP = !!(window.chrome && window.chrome.webview);
+// (Telegram на компьютере тоже работает на WebView2, поэтому Telegram исключаем явно)
+const DESKTOP_APP = !!(window.chrome && window.chrome.webview) && !/tgWebApp/.test(location.hash + location.search);
+// Значки улучшений над выбранной башней
+const UPGRADE_HELP = `
+    <li><b>Улучшения</b> оплачиваются войсками из самой башни. Выберите одну башню — над ней появятся значки:
+      <br>⚒ <b>Казарма</b>${IS_TOUCH ? '' : ' (<kbd>Q</kbd>)'}: башня начинает производить войска, с каждым уровнем больше.
+      <br>🛡 <b>Форт</b>${IS_TOUCH ? '' : ' (<kbd>E</kbd>)'}: защитники крепче, а башня стреляет по вражеским войскам рядом.
+      <br>✕ <b>Убрать путь</b>${IS_TOUCH ? '' : ' (<kbd>X</kbd>)'}: башня перестаёт отправлять войска.
+      <br>Цифра внизу значка — цена в войсках, цифра в уголке — текущий уровень (до 3).
+      Бледный значок — не хватает войск или улучшение недоступно; нажмите на него, и игра подскажет почему.
+      <br>Обычная башня может стать либо казармой, либо фортом. Главное здание может улучшать и то, и другое.</li>`;
 const RULES_CONTROLS = IS_TOUCH ? `
     <li><b>Выбрать</b> свою башню: коснитесь её. Долгое нажатие добавляет к выбору ещё башни.</li>
     <li><b>Проложить путь:</b> протяните пальцем от своей башни к цели. Можно и так: выбрать башню и коснуться чужой.
@@ -508,20 +511,14 @@ const RULES_CONTROLS = IS_TOUCH ? `
       Можно вести путь и к своей башне, чтобы подкреплять её с тыла. У каждой башни только один путь: новый заменяет старый.</li>
     <li><b>Убрать путь:</b> коснитесь его линии, нажмите «Убрать путь» в панели башни или проведите тот же путь ещё раз.</li>
     <li>Иконка выхода справа вверху или «Назад» на телефоне возвращает в главное меню.</li>
-    <li><b>Улучшения</b> оплачиваются войсками из самой башни. Выберите одну башню и нажмите в панели внизу:
-      <br><b>Казарма</b>: башня начинает производить войска.
-      <br><b>Форт</b>: защитники крепче, а башня стреляет по вражеским войскам рядом.
-      <br>Обычная башня может стать либо казармой, либо фортом. Главное здание может улучшать и то, и другое.</li>` : `
+    ${UPGRADE_HELP}` : `
     <li><b>Выбрать</b> свою башню: левый клик. <kbd>Shift</kbd>+клик добавляет ещё башни, <kbd>A</kbd> выбирает все.</li>
     <li><b>Проложить путь:</b> перетащите мышью от своей башни к цели. Можно и так: выбрать башню и кликнуть по чужой.
       Путь прокладывается один раз, и дальше войска сами идут по нему (${CFG.flow} в секунду), пока вы его не уберёте.
       Можно вести путь и к своей башне, чтобы подкреплять её с тыла. У каждой башни только один путь: новый заменяет старый.</li>
     <li><b>Убрать путь:</b> кликните по линии пути, нажмите <kbd>X</kbd> на выбранной башне или проведите тот же путь ещё раз.</li>
     <li><kbd>Esc</kbd> или иконка выхода справа вверху возвращает в главное меню.${DESKTOP_APP ? ' <kbd>F11</kbd> — полноэкранный режим.' : ''}</li>
-    <li><b>Улучшения</b> оплачиваются войсками из самой башни. Выберите одну башню, затем:
-      <br><kbd>Q</kbd> <b>Казарма</b>: башня начинает производить войска.
-      <br><kbd>E</kbd> <b>Форт</b>: защитники крепче, а башня стреляет по вражеским войскам рядом.
-      <br>Обычная башня может стать либо казармой, либо фортом. Главное здание может улучшать и то, и другое.</li>`;
+    ${UPGRADE_HELP}`;
 const RULES_HTML = `
   <b>Цель:</b> захватить главные здания всех соперников. Игрок, у которого захватили главное здание, выбывает, а его башни становятся нейтральными.
   <ul>
@@ -532,6 +529,7 @@ const RULES_HTML = `
     <li><b>Бустеры</b> спрятаны в некоторых серых башнях, над ними золотой <b>?</b>. Бустер получает тот, кто первым захватит башню:
       ${BOOSTERS.map(b => `<br>${b.icon} <b>${b.name}</b>${b.secs ? ` (${b.secs} с)` : ''}: ${b.text}.`).join('')}</li>
     ${RULES_CONTROLS}
+    <li><b>Главное здание</b> может вести сразу <b>два пути</b>, по каждому идёт полный поток войск. Третий путь заменяет самый старый.</li>
     <li><b>Настройки</b> (шестерёнка): вид башен и бойцов — картинки или классика, как в первой версии игры.</li>
     <li>Вражеские отряды при встрече уничтожают друг друга один к одному. Захваченная башня теряет один уровень улучшения.</li>
   </ul>`;
@@ -554,7 +552,7 @@ let peer = null, conn = null;
 let fx = [];              // визуальные эффекты (только локально)
 let netEvents = [];       // эффекты для отправки гостю
 let selected = new Set();
-let drag = null, hoverId = -1, hoverRoute = -1;
+let drag = null, hoverId = -1, hoverRoute = null;   // hoverRoute: путь под курсором { id, to }
 let mouse = { x: -999, y: -999 };
 let lastSnapshotAt = 0;
 
@@ -632,6 +630,7 @@ function makeNode(nodes, x, y, type, owner, units) {
   nodes.push({
     id: nodes.length, x: Math.round(x), y: Math.round(y), r: type === 'base' ? 34 : 24,
     type, owner, units, prod: 0, def: 0, cd: 0, route: -1, flowCd: 0, booster: -1,
+    route2: -1, flowCd2: 0,                 // второй путь — только у главного здания
     style: Math.floor(Math.random() * 6),   // какая из серых башен рисуется, пока башня нейтральная
   });
 }
@@ -740,14 +739,22 @@ function spawnUnit(g, from, target, off, delay) {
   });
 }
 
-// Постоянный путь: башня сама отправляет войска к цели, пока путь не убран
-function setRoute(g, player, fromIds, to) {
+// Постоянный путь: башня сама отправляет войска к цели, пока путь не убран.
+// Главное здание (если allowSecond — так прокладывают игроки) держит два пути сразу:
+// второй добавляется к первому, третий заменяет самый старый.
+function setRoute(g, player, fromIds, to, allowSecond = false) {
   const target = g.nodes[to];
   if (!target || g.over !== null) return;
   for (const id of fromIds) {
     const n = g.nodes[id];
     if (!n || n.owner !== player || id === to) continue;
-    n.route = to;
+    if (n.route === to || n.route2 === to) continue;
+    if (allowSecond && n.type === 'base' && n.route >= 0) {
+      if (n.route2 >= 0) n.route = n.route2;
+      n.route2 = to;
+    } else {
+      n.route = to;
+    }
     // Без путей по кругу: если цепочка своих путей от цели возвращается сюда, разрываем её
     // перед этой башней (частный случай — встречный путь A→B, B→A)
     let cur = target;
@@ -758,9 +765,13 @@ function setRoute(g, player, fromIds, to) {
   }
 }
 
-function clearRoute(g, player, id) {
+// Убрать путь к цели to (или все пути башни, если to не задан)
+function clearRoute(g, player, id, to) {
   const n = g.nodes[id];
-  if (n && n.owner === player) n.route = -1;
+  if (!n || n.owner !== player) return;
+  if (to === undefined || to === null) { n.route = -1; n.route2 = -1; return; }
+  if (n.route2 === to) n.route2 = -1;
+  if (n.route === to) { n.route = n.route2; n.route2 = -1; }   // второй путь становится основным
 }
 
 function upgrade(g, player, id, branch) {
@@ -784,7 +795,7 @@ function arrive(g, u, n) {
     n.units = -n.units * str / dmg;  // остаток переходит к атакующему
     n.owner = u.owner;
     n.cd = 0;
-    n.route = -1;
+    n.route = -1; n.route2 = -1;
     if (n.prod > 0) n.prod--;
     if (n.def > 0) n.def--;
     emit([1, n.x, n.y, u.owner]);
@@ -863,6 +874,15 @@ function step(g, dt) {
         spawnUnit(g, n, g.nodes[n.route], (Math.random() - 0.5) * 10, 0);
       }
     }
+    // второй путь главного здания — свой полный поток
+    if (n.route2 >= 0 && n.owner >= 0) {
+      n.flowCd2 -= dt;
+      if (n.flowCd2 <= 0 && n.units >= 1) {
+        n.units -= 1;
+        n.flowCd2 = 1 / CFG.flow;
+        spawnUnit(g, n, g.nodes[n.route2], (Math.random() - 0.5) * 10, 0);
+      }
+    }
   }
 
   const speedOf = Array.from({ length: g.players }, (_, p) => CFG.speed * dt * (buff(g, p, 'speed') ? SPEED_MUL : 1));
@@ -893,7 +913,7 @@ function step(g, dt) {
 // Выбывший игрок: его башни становятся нейтральными, войска в пути исчезают
 function eliminate(g, p) {
   g.alive[p] = false;
-  for (const n of g.nodes) if (n.owner === p) { n.owner = -1; n.route = -1; }
+  for (const n of g.nodes) if (n.owner === p) { n.owner = -1; n.route = -1; n.route2 = -1; }
   g.units = g.units.filter(u => u.owner !== p);
   emit([2, p]);
   onEliminated(p);
@@ -1143,8 +1163,8 @@ function joinGame() {
 
 function onHostData(d) {
   if (!d || !game) return;
-  if (d.t === 'route' && Array.isArray(d.from)) setRoute(game, 1, d.from.map(Number), +d.to);
-  else if (d.t === 'unroute' && Array.isArray(d.ids)) for (const id of d.ids) clearRoute(game, 1, +id);
+  if (d.t === 'route' && Array.isArray(d.from)) setRoute(game, 1, d.from.map(Number), +d.to, true);
+  else if (d.t === 'unroute' && Array.isArray(d.ids)) for (const id of d.ids) clearRoute(game, 1, +id, d.to == null ? undefined : +d.to);
   else if (d.t === 'up') upgrade(game, 1, +d.id, d.b);
   else if (d.t === 'rematch' && game.over !== null) startMatch();
   else if (d.t === 'leave') onOpponentLeft();
@@ -1159,9 +1179,9 @@ function onGuestData(d) {
   if (d.t === 'leave') { onOpponentLeft(); return; }
   if (d.t === 'init') {
     mode = 'guest'; me = 1;
-    H = 720; resize();
+    H = +d.h || 720; resize();                     // карта той же формы, что у хоста
     game = {
-      nodes: d.nodes.map((n, i) => ({ id: i, x: n[0], y: n[1], r: n[2], type: n[3] ? 'base' : 'tower', owner: -1, units: 0, prod: 0, def: 0, route: -1, booster: -1, style: n[4] || 0 })),
+      nodes: d.nodes.map((n, i) => ({ id: i, x: n[0], y: n[1], r: n[2], type: n[3] ? 'base' : 'tower', owner: -1, units: 0, prod: 0, def: 0, route: -1, route2: -1, booster: -1, style: n[4] || 0 })),
       units: [], countdown: 3, over: null, players: 2, alive: [true, true], bots: [],
       time: 0, boostUntil: [0, 0], buffs: [{}, {}],   // у гостя: остаток секунд ускорения и бустеров (из снимка)
     };
@@ -1174,7 +1194,7 @@ function onGuestData(d) {
 
 function snapshot(g) {
   const n = [];
-  for (const x of g.nodes) n.push(x.owner, Math.round(x.units * 10), x.prod, x.def, x.route, x.booster);
+  for (const x of g.nodes) n.push(x.owner, Math.round(x.units * 10), x.prod, x.def, x.route, x.booster, x.route2);
   const u = [];
   for (const x of g.units) if (x.delay <= 0) u.push(Math.round(x.x), Math.round(x.y), x.owner, x.target);
   const left = t => Math.max(0, +(t - g.time).toFixed(1));
@@ -1189,8 +1209,9 @@ function applySnapshot(s) {
   const g = game;
   for (let i = 0; i < g.nodes.length; i++) {
     const n = g.nodes[i];
-    const k = i * 6;
+    const k = i * 7;
     n.owner = s.n[k]; n.units = s.n[k + 1] / 10; n.prod = s.n[k + 2]; n.def = s.n[k + 3]; n.route = s.n[k + 4];
+    n.route2 = s.n[k + 6];
     n.booster = s.n[k + 5];
   }
   g.units = [];
@@ -1234,7 +1255,7 @@ function leaveGame() {
 
   mode = null; me = 0; game = null;
   fx = []; netEvents = []; selected.clear();
-  endPress(); hoverId = -1; hoverRoute = -1; nodeTip = null;
+  endPress(); hoverId = -1; hoverRoute = null; nodeTip = null;
   hideBuffTip();
   document.body.classList.remove('ingame');
   canvas.style.cursor = '';
@@ -1282,13 +1303,13 @@ function startMatch() {
     H = worldHeightForScreen();                    // карта под форму экрана
     game = newGame({ players: lp.enemies + 1, towers, bonus: lp.bonus, diffs: Array(lp.enemies).fill(lp.diff) });
   } else {
-    H = 720;                                       // в сети у обоих одна и та же карта
+    H = worldHeightForScreen();                    // форму карты выбирает хост и передаёт гостю
     game = newGame({ duel: true });
   }
   resize();
   fx = []; netEvents = []; selected.clear();
   if (mode === 'host' && conn) {
-    conn.send({ t: 'init', nodes: game.nodes.map(n => [n.x, n.y, n.r, n.type === 'base' ? 1 : 0, n.style]) });
+    conn.send({ t: 'init', h: H, nodes: game.nodes.map(n => [n.x, n.y, n.r, n.type === 'base' ? 1 : 0, n.style]) });
   }
   enterGameUI();
 }
@@ -1351,26 +1372,29 @@ function hideOverlay() {
 // =====================================================================
 function net(msg) { if (conn && conn.open) conn.send(msg); }
 
+const hasRouteTo = (n, to) => n.route === to || n.route2 === to;
+
 // Проложить путь. Если у всех выбранных башен уже есть этот путь, убрать его.
+// Главное здание может держать два пути сразу.
 function cmdRoute(from, to) {
   from = from.filter(id => id !== to && game.nodes[id].owner === me);
   if (!from.length) return;
-  if (from.every(id => game.nodes[id].route === to)) { cmdUnroute(from); return; }
+  if (from.every(id => hasRouteTo(game.nodes[id], to))) { cmdUnroute(from, to); return; }
   if (mode === 'guest') net({ t: 'route', from, to });
-  else setRoute(game, me, from, to);
+  else setRoute(game, me, from, to, true);
 }
 
-function cmdUnroute(ids) {
-  ids = ids.filter(id => game.nodes[id].owner === me && game.nodes[id].route >= 0);
+// Убрать путь к цели to (или все пути выбранных башен, если to не задан)
+function cmdUnroute(ids, to) {
+  ids = ids.filter(id => { const n = game.nodes[id]; return n.owner === me && (to == null ? n.route >= 0 || n.route2 >= 0 : hasRouteTo(n, to)); });
   if (!ids.length) return;
-  if (mode === 'guest') net({ t: 'unroute', ids });
-  else for (const id of ids) clearRoute(game, me, id);
-  for (const id of ids) game.nodes[id].route = -1;   // сразу прячем линию, не дожидаясь хоста
+  if (mode === 'guest') net({ t: 'unroute', ids, to: to == null ? null : to });
+  for (const id of ids) clearRoute(game, me, id, to == null ? undefined : to);   // у гостя — сразу прячем линию
 }
 
 // Отрезок пути от края башни-источника до края цели (в координатах карты)
-function routeSeg(n) {
-  const t = game.nodes[n.route];
+function routeSeg(n, to = n.route) {
+  const t = game.nodes[to];
   const ang = Math.atan2(t.y - n.y, t.x - n.x), c = Math.cos(ang), s = Math.sin(ang);
   return [n.x + c * (n.r + 4), n.y + s * (n.r + 4), t.x - c * (t.r + 8), t.y - s * (t.r + 8)];
 }
@@ -1381,13 +1405,16 @@ function segDist(px, py, ax, ay, bx, by) {
   return Math.hypot(px - ax - k * dx, py - ay - k * dy);
 }
 
-// Свой путь под курсором (для удаления кликом)
+// Свой путь под курсором (для удаления кликом): { id, to } или null
 function routeAt(p, tol) {
-  let best = -1, bd = tol;
+  let best = null, bd = tol;
   for (const n of game.nodes) {
-    if (n.owner !== me || n.route < 0) continue;
-    const d = segDist(p.x, p.y, ...routeSeg(n));
-    if (d < bd) { bd = d; best = n.id; }
+    if (n.owner !== me) continue;
+    for (const to of [n.route, n.route2]) {
+      if (to < 0) continue;
+      const d = segDist(p.x, p.y, ...routeSeg(n, to));
+      if (d < bd) { bd = d; best = { id: n.id, to }; }
+    }
   }
   return best;
 }
@@ -1427,7 +1454,7 @@ function layoutBox() {
   const vw = innerWidth - safe.l - safe.r, vh = innerHeight - safe.t - safe.b;
   const isCompact = vh < 600;
   const top = hudInBand ? 4 : isCompact ? 44 : 60;
-  const bottom = isCompact ? 6 : 72, side = isCompact ? 8 : 16;
+  const bottom = isCompact ? 6 : 16, side = isCompact ? 8 : 16;
   return { vw, vh, isCompact, top, bottom, side, availW: vw - side * 2, availH: vh - top - bottom };
 }
 function resize() {
@@ -1505,7 +1532,7 @@ canvas.addEventListener('pointerdown', e => {
   if (e.button !== 0) return;
   if (!n) {
     const r = routeAt(p, touch ? 20 : 10);
-    if (r >= 0) cmdUnroute([r]);
+    if (r) cmdUnroute([r.id], r.to);
     else selected.clear();
     return;
   }
@@ -1544,8 +1571,8 @@ canvas.addEventListener('pointermove', e => {
   if (touch && !press) return;                   // у пальца нет «наведения»
   const n = pick(mouse, touch);
   hoverId = n ? n.id : -1;
-  hoverRoute = !n && game && !drag && !touch ? routeAt(mouse, 10) : -1;
-  canvas.style.cursor = hoverRoute >= 0 ? 'pointer' : '';
+  hoverRoute = !n && game && !drag && !touch ? routeAt(mouse, 10) : null;
+  canvas.style.cursor = hoverRoute ? 'pointer' : '';
 });
 function endPress() {
   if (press) clearTimeout(press.timer);
@@ -1698,11 +1725,17 @@ function drawRanges() {
 
 function drawRoutes(t) {
   for (const n of game.nodes) {
-    if (n.route < 0 || n.owner < 0) continue;
+    if (n.owner < 0) continue;
+    for (const to of [n.route, n.route2]) if (to >= 0) drawRoute(n, to, t);
+  }
+}
+
+function drawRoute(n, to, t) {
+  {
     const c = COL[n.owner];
-    const [ax, ay, bx, by] = routeSeg(n);
+    const [ax, ay, bx, by] = routeSeg(n, to);
     const x1 = X(ax), x2 = X(bx);
-    const hot = n.id === hoverRoute;
+    const hot = !!hoverRoute && hoverRoute.id === n.id && hoverRoute.to === to;
 
     ctx.lineCap = 'round';
     ctx.strokeStyle = alpha(c.main, hot ? 0.35 : 0.18);
@@ -1729,10 +1762,10 @@ function drawRoutes(t) {
 
 // Крестик посередине пути под курсором: клик уберёт путь
 function drawRouteHover() {
-  if (hoverRoute < 0 || !playing()) return;
-  const n = game.nodes[hoverRoute];
-  if (n.route < 0 || n.owner !== me) return;
-  const [ax, ay, bx, by] = routeSeg(n);
+  if (!hoverRoute || !playing()) return;
+  const n = game.nodes[hoverRoute.id];
+  if (!hasRouteTo(n, hoverRoute.to) || n.owner !== me) return;
+  const [ax, ay, bx, by] = routeSeg(n, hoverRoute.to);
   const mx = X((ax + bx) / 2), my = (ay + by) / 2;
   circle(mx, my, 11);
   ctx.fillStyle = '#0b0f19'; ctx.fill();
@@ -1792,7 +1825,7 @@ function drawOrders() {
     const n = game.nodes[id];
     if (target && n.id === target.id) continue;
     count++;
-    if (target && n.route === target.id) existing++;
+    if (target && hasRouteTo(n, target.id)) existing++;
     const ang = Math.atan2(ty - n.y, tx - X(n.x));
     const ex = target ? tx - Math.cos(ang) * (target.r + 6) : tx;
     const ey = target ? ty - Math.sin(ang) * (target.r + 6) : ty;
@@ -2023,6 +2056,7 @@ function towerSpriteName(n) {
 // Где рисуется здание (в координатах карты, x не отражён): низ картинки чуть ниже центра узла
 function towerBox(n) {
   if (settings.towers === 'classic') return null;    // в настройках выбран классический вид — кружки
+  if (settings.towers === 'neon') return neonBox(n);
   const name = towerSpriteName(n), img = SPR_TOWER[name], meta = TOWER_META[name];
   if (!img || !meta) return null;
   const big = scale < 0.7 ? 1.3 : 1;          // на телефоне места хватает — рисуем крупнее
@@ -2036,7 +2070,9 @@ function drawNodes(t) {
   // нижние здания рисуются поверх верхних
   for (const n of game.nodes.slice().sort((a, b) => a.y - b.y)) {
     const box = towerBox(n);
-    if (box) drawTowerNode(n, box, t); else drawCircleNode(n, t);
+    if (!box) drawCircleNode(n, t);
+    else if (box.neon) drawNeonNode(n, box, t);
+    else drawTowerNode(n, box, t);
   }
 }
 
@@ -2082,9 +2118,9 @@ function drawTowerNode(n, b, t) {
   const f = Math.max(rh * 0.78, fontPx(n.type === 'base' ? 15 : 13, n.type === 'base' ? 12 : 10.5));
   ctx.font = `800 ${f}px Rubik, sans-serif`;
   const tw = ctx.measureText(label).width;
-  if (f > rh * 0.9 || tw > rw * 0.88) {
+  {  // плашка под числом — всегда: на сером флаге нейтральной башни тёмная цифра иначе не читается
     const pw = Math.max(rw, tw + f * 0.55), ph = Math.max(rh, f * 1.2);
-    ctx.fillStyle = n.owner < 0 ? '#c5c8ce' : n.type === 'base' ? c.light : '#ebe2ce';
+    ctx.fillStyle = n.owner < 0 ? '#dfe2e7' : n.type === 'base' ? c.light : '#ebe2ce';
     ctx.beginPath(); ctx.roundRect(cx - pw / 2, cy - ph / 2, pw, ph, ph * 0.22); ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1.2; ctx.stroke();
   }
@@ -2126,6 +2162,176 @@ function drawTowerNode(n, b, t) {
     const lbl = n.owner === me ? 'ВАША БАЗА' : game.players > 2 ? TEAM[n.owner] : 'БАЗА ВРАГА';
     ctx.strokeText(lbl, x, below + lp * 0.8);
     ctx.fillStyle = c.light;
+    ctx.fillText(lbl, x, below + lp * 0.8);
+  }
+}
+
+// ---------------------------------------------------------------------
+//  Неоновые башни: светящиеся контуры, нарисованные кодом (в духе минималистичных иконок).
+//  Каждый силуэт рисуется один раз на запасной холст с свечением и дальше просто копируется.
+// ---------------------------------------------------------------------
+const NEON_SHAPES = ['flag', 'radar', 'antenna', 'rocket'];   // верхушки обычных башен
+const NEON_ASPECT = { base: 1.25, tower: 1 };
+const neonCache = new Map();
+
+// Контуры в квадрате 100×100 (у базы — 125×100), низ здания на y = 100
+function neonPaths(kind) {
+  const P = [];   // список путей: [точки], closed
+  const rect = (x0, y0, x1, y1) => P.push({ pts: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], closed: true });
+  const line = (...pts) => P.push({ pts, closed: false });
+  const poly = (...pts) => P.push({ pts, closed: true });
+  if (kind === 'base') {
+    poly([4, 100], [16, 72], [34, 72], [34, 100]);             // левый скат
+    poly([121, 100], [109, 72], [91, 72], [91, 100]);          // правый скат
+    rect(16, 56, 34, 100); rect(20, 46, 30, 56); line([25, 46], [25, 34]);   // левая башня
+    rect(91, 56, 109, 100); rect(95, 46, 105, 56); line([100, 46], [100, 34]); // правая башня
+    line([34, 66], [44, 58]); line([91, 66], [81, 58]);        // стены
+    poly([36, 100], [44, 36], [81, 36], [89, 100]);            // центральная башня
+    rect(50, 24, 75, 36); rect(55, 16, 70, 24);                // ярусы
+    line([62.5, 16], [62.5, 0]); poly([62.5, 0], [78, 3.5], [72, 7], [78, 10.5], [62.5, 10.5]);   // флаг
+    rect(55, 86, 70, 100);                                     // ворота
+    line([56, 50], [69, 50]); line([55, 66], [70, 66]);        // окна
+    return P;
+  }
+  // обычная башня / форт
+  poly([6, 100], [22, 66], [78, 66], [94, 100]);               // основание-трапеция
+  rect(32, 74, 68, 100);                                       // проём
+  rect(26, 52, 74, 66); rect(17, 57, 26, 66); rect(74, 57, 83, 66);   // средний ярус с уступами
+  rect(36, 40, 64, 52); line([44, 46], [56, 46]);              // верхний ярус
+  if (kind === 'cannon') {
+    rect(40, 30, 60, 40);                                      // башенка
+    poly([55, 33], [86, 17], [89, 22], [58, 38]);              // ствол
+    line([46, 30], [46, 20]);
+  } else if (kind === 'flag') {
+    line([50, 40], [50, 8]); poly([50, 8], [70, 12], [63, 16.5], [70, 21], [50, 21]);
+  } else if (kind === 'radar') {
+    line([50, 40], [50, 28]);
+    poly([34, 27], [44, 12], [60, 6], [66, 12], [58, 26], [44, 30]);   // тарелка
+    line([50, 20], [60, 10]);
+  } else if (kind === 'antenna') {
+    line([40, 40], [40, 18]); line([50, 40], [50, 4]); line([60, 40], [60, 18]); line([36, 28], [64, 28]);
+  } else if (kind === 'rocket') {
+    poly([50, 4], [56, 14], [56, 36], [44, 36], [44, 14]);     // корпус
+    poly([44, 28], [38, 38], [44, 36]); poly([56, 28], [62, 38], [56, 36]);   // стабилизаторы
+  }
+  return P;
+}
+
+function neonSprite(kind, color, pxH) {
+  const key = kind + '|' + color + '|' + pxH;
+  let c = neonCache.get(key);
+  if (c) return c;
+  const aw = NEON_ASPECT[kind === 'base' ? 'base' : 'tower'];
+  const pad = Math.ceil(pxH * 0.14), k = pxH / 100;
+  c = document.createElement('canvas');
+  c.width = Math.ceil(pxH * aw) + pad * 2; c.height = pxH + pad * 2;
+  const x = c.getContext('2d');
+  x.translate(pad, pad); x.lineJoin = 'round'; x.lineCap = 'round';
+  const stroke = (w, style, blur) => {
+    x.lineWidth = w; x.strokeStyle = style; x.shadowColor = color; x.shadowBlur = blur;
+    for (const p of neonPaths(kind)) {
+      x.beginPath();
+      p.pts.forEach(([px, py], i) => (i ? x.lineTo(px * k, py * k) : x.moveTo(px * k, py * k)));
+      if (p.closed) x.closePath();
+      x.stroke();
+    }
+  };
+  stroke(Math.max(2, pxH * 0.034), color, pxH * 0.12);        // свечение
+  stroke(Math.max(1.4, pxH * 0.022), color, pxH * 0.04);      // линия
+  stroke(Math.max(0.8, pxH * 0.009), 'rgba(255,255,255,0.75)', 0);   // яркая сердцевина
+  c.pad = pad;
+  if (neonCache.size > 200) neonCache.clear();
+  neonCache.set(key, c);
+  return c;
+}
+
+function neonBox(n) {
+  const kind = n.type === 'base' ? 'base' : n.def > 0 ? 'cannon' : NEON_SHAPES[n.style % 4];
+  const big = scale < 0.7 ? 1.25 : 1;
+  const h = n.r * (n.type === 'base' ? 2.9 : 2.7) * big, w = h * NEON_ASPECT[kind === 'base' ? 'base' : 'tower'];
+  const bottom = n.y + n.r * 0.6;
+  return { neon: true, kind, w, h, top: bottom - h, bottom };
+}
+
+function drawNeonNode(n, b, t) {
+  const c = COL[n.owner], x = X(n.x);
+  const color = n.owner < 0 ? '#aab4c8' : c.main;
+  const ex = b.w * 0.5, ey = b.w * 0.16, gy = b.bottom;
+  const ring = (rx, ry) => { ctx.beginPath(); ctx.ellipse(x, gy, rx, ry, 0, 0, Math.PI * 2); };
+
+  if (baseBoosted(game, n)) {
+    const k = (t * 0.8) % 1;
+    ring(ex + 6 + k * 26, ey + 3 + k * 10);
+    ctx.strokeStyle = alpha('#ffc94d', 0.6 * (1 - k)); ctx.lineWidth = 2; ctx.stroke();
+  }
+  if (n.owner >= 0 && buff(game, n.owner, 'shield')) {
+    ctx.setLineDash([6, 5]); ctx.lineDashOffset = -t * 20;
+    ring(ex + 10, ey + 5);
+    ctx.strokeStyle = 'rgba(165,180,252,0.9)'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.setLineDash([]); ctx.lineDashOffset = 0;
+  }
+  if (selected.has(n.id)) {
+    ring(ex + 4 + Math.sin(t * 6) * 1.5, ey + 3);
+    ctx.strokeStyle = '#ffffffdd'; ctx.lineWidth = 2.5; ctx.stroke();
+  } else if (hoverId === n.id && playing()) {
+    ring(ex + 4, ey + 3);
+    ctx.strokeStyle = '#ffffff55'; ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  // силуэт (кэш под текущий размер на экране)
+  const pxH = Math.max(24, Math.round(b.h * scale * dpr));
+  const spr = neonSprite(b.kind, color, pxH), s = b.h / pxH;
+  ctx.drawImage(spr, x - b.w / 2 - spr.pad * s, b.top - spr.pad * s, spr.width * s, spr.height * s);
+
+  // число в светящейся шестиугольной плашке под зданием
+  const label = String(Math.floor(n.units));
+  const f = fontPx(n.type === 'base' ? 15 : 13, n.type === 'base' ? 12 : 10.5);
+  ctx.font = `800 ${f}px Rubik, sans-serif`;
+  const tw = ctx.measureText(label).width, pw = Math.max(tw + f * 1.4, f * 2.6), ph = f * 1.45;
+  const py = gy + ph * 0.5 + 3, px0 = x - pw / 2, cut = ph * 0.35;
+  ctx.beginPath();
+  ctx.moveTo(px0 + cut, py - ph / 2); ctx.lineTo(px0 + pw - cut, py - ph / 2); ctx.lineTo(px0 + pw, py);
+  ctx.lineTo(px0 + pw - cut, py + ph / 2); ctx.lineTo(px0 + cut, py + ph / 2); ctx.lineTo(px0, py); ctx.closePath();
+  ctx.fillStyle = 'rgba(6,9,18,0.88)'; ctx.fill();
+  ctx.strokeStyle = alpha(color, 0.3); ctx.lineWidth = 4; ctx.stroke();
+  ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.fillStyle = n.owner < 0 ? '#e6ebf5' : c.light;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(label, x, py + f * 0.05);
+  // короткие «чёрточки» по бокам плашки, как на эскизе
+  ctx.strokeStyle = alpha(color, 0.8); ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(px0 - f * 1.1, py); ctx.lineTo(px0 - f * 0.35, py);
+  ctx.moveTo(px0 + pw + f * 0.35, py); ctx.lineTo(px0 + pw + f * 1.1, py);
+  ctx.stroke();
+
+  let below = py + ph / 2 + 3;
+  const pips = [];
+  for (let i = 0; i < n.prod; i++) pips.push('#ffc94d');
+  for (let i = 0; i < n.def; i++) pips.push('#6ee7ff');
+  if (pips.length) {
+    const pr = fontPx(3.4, 2.8), gap = pr * 2.9;
+    pips.forEach((col, i) => {
+      circle(x + (i - (pips.length - 1) / 2) * gap, below + pr, pr);
+      ctx.fillStyle = col; ctx.fill();
+    });
+    below += pr * 2 + 2;
+  }
+  if (n.booster >= 0) {
+    const br = fontPx(10, 7.5);
+    const bx = x - b.w * 0.42, by = b.top + b.h * 0.18 + Math.sin(t * 3 + n.id) * 1.5;
+    circle(bx, by, br);
+    ctx.fillStyle = '#ffc94d'; ctx.fill();
+    ctx.strokeStyle = '#0b0f19'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#0b0f19';
+    ctx.font = `800 ${br * 1.45}px Rubik, sans-serif`;
+    ctx.fillText('?', bx, by + br * 0.08);
+  }
+  if (n.type === 'base') {
+    const lp = fontPx(11, 9);
+    ctx.font = `700 ${lp}px Rubik, sans-serif`;
+    const lbl = n.owner === me ? 'ВАША БАЗА' : game.players > 2 ? TEAM[n.owner] : 'БАЗА ВРАГА';
+    ctx.fillStyle = alpha(color, 0.95);
     ctx.fillText(lbl, x, below + lp * 0.8);
   }
 }
@@ -2322,71 +2528,46 @@ document.addEventListener('pointerdown', e => {   // нажатие мимо п�
 });
 
 let panelKey = '';
+// Значки над выбранной башней: ⚒ казарма, 🛡 форт (цифра в уголке — уровень, внизу — цена), ✕ убрать путь.
+// Бледный значок — не хватает войск или недоступно; нажатие подскажет почему. Описание — в «?».
 function updatePanel() {
   const panel = $('panel');
-  if (!selected.size || !playing()) { panel.classList.add('hidden'); panelKey = ''; return; }
+  const hide = () => { panel.classList.add('hidden'); panelKey = ''; };
+  if (!selected.size || !playing() || drag) return hide();
+  const ids = [...selected];
+  const single = ids.length === 1 ? game.nodes[ids[0]] : null;
+  const anyRoute = ids.some(id => game.nodes[id].route >= 0 || game.nodes[id].route2 >= 0);
+  if (!single && !anyRoute) return hide();
+
+  const key = single
+    ? [single.id, Math.floor(single.units), single.prod, single.def, single.route, single.route2].join(':')
+    : 'm' + ids.join(',') + anyRoute;
+  if (key !== panelKey) {
+    panelKey = key;
+    $('upProd').classList.toggle('hidden', !single);
+    $('upDef').classList.toggle('hidden', !single);
+    $('unrouteBtn').classList.toggle('hidden', !anyRoute);
+    if (single) for (const [btn, b] of [[$('upProd'), 'prod'], [$('upDef'), 'def']]) {
+      const lv = single[b], can = canBranch(single, b), max = lv >= 3;
+      const cost = max ? 0 : CFG.cost[lv];
+      btn.querySelector('.lvl').textContent = lv ? String(lv) : '';
+      btn.querySelector('.cost').textContent = !can ? '—' : max ? 'макс' : String(cost);
+      btn.classList.toggle('off', !can || max || single.units < cost);
+      const name = b === 'prod' ? 'Казарма' : 'Форт';
+      btn.title = !can ? `${name}: недоступно` : max ? `${name}: максимальный уровень` : `${name} → ур. ${lv + 1}, цена ${cost} войск`;
+    }
+  }
   panel.classList.remove('hidden');
 
-  // панель не должна закрывать выбранную башню: башня в нижней части экрана — панель сверху поля
-  let sy = 0;
-  for (const id of selected) sy += game.nodes[id].y;
-  const atTop = offY + (sy / selected.size) * scale > innerHeight * 0.55;
-  panel.classList.toggle('at-top', atTop);
-  panel.style.top = atTop ? Math.round(offY + 4) + 'px' : '';
-
-  if (selected.size > 1) {
-    let sum = 0, routes = 0;
-    for (const id of selected) { sum += Math.floor(game.nodes[id].units); if (game.nodes[id].route >= 0) routes++; }
-    const key = 'm' + selected.size + ':' + sum + ':' + routes;
-    if (key === panelKey) return;
-    panelKey = key;
-    $('pTitle').textContent = `Выбрано башен: ${selected.size}`;
-    $('pInfo').textContent = `Войск ${sum} · путей ${routes} · протяните к цели`;
-    $('unrouteBtn').classList.toggle('hidden', routes === 0);
-    $('pBtns').classList.add('hidden');
-    return;
-  }
-
-  const n = game.nodes[[...selected][0]];
-  const u = Math.floor(n.units);
-  const key = [n.id, u, n.prod, n.def, n.route].join(':');
-  if (key === panelKey) return;
-  panelKey = key;
-  $('pBtns').classList.remove('hidden');
-  $('unrouteBtn').classList.toggle('hidden', n.route < 0);
-
-  let title = 'Башня';
-  if (n.type === 'base') title = 'Главное здание';
-  else if (n.prod > 0) title = `Казарма · ур. ${n.prod}`;
-  else if (n.def > 0) title = `Форт · ур. ${n.def}`;
-  $('pTitle').textContent = title;
-
-  const rate = effRate(game, n);
-  $('pInfo').textContent =
-    `Войск ${u}/${capOf(n)} · ${rate ? '+' + rate.toFixed(1) + '/с' : 'без производства'} · прочность ×${CFG.strength[n.def]}`;
-
-  const setBtn = (btn, b) => {
-    const lv = n[b], t = btn.querySelector('.t'), s = btn.querySelector('.s');
-    const name = b === 'prod' ? 'Казарма' : 'Форт';
-    if (!canBranch(n, b)) {
-      t.textContent = name; s.textContent = b === 'prod' ? 'башня уже форт' : 'башня уже казарма';
-      btn.disabled = true; return;
-    }
-    if (lv >= 3) { t.textContent = `${name} ур. 3`; s.textContent = 'максимум'; btn.disabled = true; return; }
-    const cost = CFG.cost[lv];
-    t.textContent = `${name} ур. ${lv + 1}`;
-    if (b === 'prod') {
-      const next = n.type === 'base'
-        ? (CFG.baseProd + CFG.baseProdPer * (lv + 1)) * (baseBoosted(game, n) ? BOOST_MUL : 1)
-        : CFG.towerProd[lv + 1];
-      s.textContent = `${cost} войск · +${next.toFixed(1)}/с`;
-    } else {
-      s.textContent = `${cost} войск · прочность ×${CFG.strength[lv + 1]}`;
-    }
-    btn.disabled = u < cost;
-  };
-  setBtn($('upProd'), 'prod');
-  setBtn($('upDef'), 'def');
+  // над башней (над флагом); если сверху не хватает места — под башней
+  const n = single || game.nodes[ids[0]];
+  const pw = panel.offsetWidth, ph = panel.offsetHeight;
+  const sx = offX + X(n.x) * scale;
+  let y = offY + nodeTop(n) * scale - ph - 8;
+  if (y < offY - 6) y = offY + (n.y + n.r * 1.3) * scale + 14;
+  const x = Math.max(pw / 2 + 6, Math.min(innerWidth - pw / 2 - 6, sx));
+  panel.style.left = Math.round(x) + 'px';
+  panel.style.top = Math.round(y) + 'px';
 }
 
 // =====================================================================
@@ -2561,7 +2742,7 @@ function initTelegram() {
   applySafe();
   for (const ev of ['safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged', 'viewportChanged']) tg.onEvent(ev, applySafe);
   // кнопка «Назад» Telegram работает как «Назад» на Android
-  tg.BackButton.onClick(() => { if (!window.androidBack()) tg.close(); });
+  tg.BackButton.onClick(() => { if (!window.androidBack()) { if (window.PU && PU.inGallery) PU.exit(); else tg.close(); } });
   // открыли по приглашению t.me/…/play?startapp=КОД — сразу заходим в комнату друга
   const start = (tg.initDataUnsafe && tg.initDataUnsafe.start_param || '').toUpperCase();
   if (/^[A-Z0-9]{5}$/.test(start) && !game) {
@@ -2621,6 +2802,18 @@ bindSetting('unitStyleSeg', 'units');
 $('helpModal').addEventListener('click', e => { if (e.target === $('helpModal')) $('helpModal').classList.add('hidden'); });   // нажатие мимо окна
 
 requestAnimationFrame(frame);
+</script>
+<script>
+if (new URLSearchParams(location.search).get('pu') === '1') {
+  const s = document.createElement('script');
+  s.src = '/sdk/pu.js';
+  s.onload = () => {
+    const b = document.getElementById('puBack');
+    b.style.display = '';
+    b.onclick = () => PU.exit();
+  };
+  document.head.appendChild(s);
+}
 </script>
 </body>
 </html>
