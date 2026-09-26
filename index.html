@@ -134,6 +134,21 @@
   .status { font-size: 14px; color: var(--muted); min-height: 20px; }
   .status.err { color: var(--red); }
   .status.ok { color: #5fe39a; }
+  .cards { align-items: start; }               /* карточки своей высоты, не тянутся под колонку «Онлайн + статистика» */
+  #diffSeg button { font-size: 12px; padding: 6px 1px; }   /* четыре сложности должны влезать целиком */
+  .online-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .online-col > .card { flex: none; }
+  body.no-net .online-col { grid-column: 1 / -1; order: 3; }   /* без онлайна статистика — строкой под карточками */
+  .stats-card { gap: 10px; }
+  .stats-card h2 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .stats-note { font-size: 12px; font-weight: 400; color: var(--muted); }
+  .stat-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+  .stat-row { background: #0e1426; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  .stat-row .lbl { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .stat-row .nums { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; font-size: 14px; }
+  .stat-row .w { color: #5fe39a; font-weight: 800; font-size: 20px; }
+  .stat-row .l { color: var(--red); font-weight: 800; font-size: 20px; }
+  .stat-row .pct { color: var(--muted); font-size: 13px; }
   .rules {
     margin-top: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
     padding: 16px 20px; font-size: 14px; color: var(--muted); line-height: 1.6;
@@ -318,6 +333,7 @@
       <p id="subtitle">Стратегия: вдвоём через интернет или против ботов</p>
     </div>
     <div class="cards" id="cards">
+      <div class="online-col">
       <div class="card net-card" id="onlineCard">
         <h2>Онлайн</h2>
         <p>Сыграйте с другом: создайте комнату или введите его код.</p>
@@ -331,6 +347,12 @@
           <button class="primary" id="joinBtn">Войти</button>
         </div>
         <div class="status" id="joinStatus"></div>
+      </div>
+      <!-- личная статистика — под «Онлайн» -->
+      <div class="card stats-card" id="statsCard">
+        <h2>Статистика <span class="stats-note">видна только вам</span></h2>
+        <div class="stat-rows" id="statRows"></div>
+      </div>
       </div>
       <div class="card">
         <h2>Тренировка</h2>
@@ -1291,6 +1313,7 @@ function leaveGame() {
 
 const HOST_AREA_HTML = $('hostArea').innerHTML;
 function resetLobby() {
+  renderStats();
   $('onlineCard').classList.remove('hosting');
   $('hostArea').innerHTML = HOST_AREA_HTML;
   $('hostBtn').onclick = hostGame;
@@ -1357,8 +1380,46 @@ function enterGameUI() {
   hideOverlay();
 }
 
+// ---------- Личная статистика: победы и поражения онлайн и с ботами ----------
+// Хранится на устройстве, а в Telegram — ещё и в облаке Telegram (общая для телефона и компьютера).
+const STATS_KEY = 'bitva-bashen-stats';
+let stats = { online: { w: 0, l: 0 }, bots: { w: 0, l: 0 } };
+function mergeStats(o) {
+  for (const k of ['online', 'bots']) for (const f of ['w', 'l']) {
+    const v = o && o[k] && +o[k][f];
+    if (v > stats[k][f]) stats[k][f] = v;          // берём большее — чтобы не потерять партии ни с одного устройства
+  }
+}
+try { mergeStats(JSON.parse(localStorage.getItem(STATS_KEY) || 'null')); } catch (e) {}
+function saveStats() {
+  try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); } catch (e) {}
+  if (tg && tg.isVersionAtLeast('6.9')) tg.CloudStorage.setItem(STATS_KEY, JSON.stringify(stats));
+}
+function recordResult(win) {
+  const k = mode === 'solo' ? 'bots' : mode === 'host' || mode === 'guest' ? 'online' : null;
+  if (!k) return;
+  stats[k][win ? 'w' : 'l']++;
+  saveStats();
+  renderStats();
+}
+function plural(n, one, few, many) {
+  const a = n % 10, b = n % 100;
+  return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many;
+}
+function renderStats() {
+  const row = (label, s) => {
+    const total = s.w + s.l;
+    return `<div class="stat-row"><div class="lbl">${label}</div><div class="nums">
+      <span><span class="w">${s.w}</span> ${plural(s.w, 'победа', 'победы', 'побед')}</span>
+      <span><span class="l">${s.l}</span> ${plural(s.l, 'поражение', 'поражения', 'поражений')}</span>
+      <span class="pct">${total ? Math.round(s.w / total * 100) + '% побед' : 'ещё не играли'}</span></div></div>`;
+  };
+  $('statRows').innerHTML = (NETWORK_ENABLED ? row('🌐 Онлайн', stats.online) : '') + row('🤖 С ботами', stats.bots);
+}
+
 function onGameOver(winner) {
   const win = winner === me;
+  recordResult(win);
   const level = mode === 'solo' && matchCfg.kind === 'level' ? matchCfg.level : 0;
   let text = win
     ? (game.players > 2 ? 'Все соперники повержены.' : 'Главное здание соперника захвачено.')
@@ -2688,6 +2749,7 @@ function renderLevelCard() {
 $('lvlPrev').onclick = () => { shownLevel--; renderLevelCard(); };
 $('lvlNext').onclick = () => { shownLevel++; renderLevelCard(); };
 renderLevelCard();
+renderStats();
 
 function startSolo(cfg) {
   mode = 'solo'; me = 0;
@@ -2781,6 +2843,15 @@ function initTelegram() {
   if (invite && !game) {
     $('codeInput').value = invite;
     joinGame();
+  }
+  // статистика из облака Telegram (общая для телефона и компьютера)
+  if (tg.isVersionAtLeast('6.9')) {
+    tg.CloudStorage.getItem(STATS_KEY, (err, v) => {
+      if (err || !v) return;
+      try { mergeStats(JSON.parse(v)); } catch (e) { return; }
+      try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); } catch (e) {}
+      renderStats();
+    });
   }
   // прогресс уровней из облака Telegram (общий для телефона и компьютера)
   if (tg.isVersionAtLeast('6.9')) {
