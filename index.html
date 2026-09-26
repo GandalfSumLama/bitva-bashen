@@ -1093,6 +1093,9 @@ function peerErrorText(err) {
   }
 }
 
+const COPY_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="#5fe39a" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>';
+
 function hostGame() {
   if (!peerAvailable()) return;
   $('hostBtn').disabled = true;
@@ -1106,15 +1109,20 @@ function hostGame() {
       <div class="code-box">
         <span class="code">${code}</span>
         <span style="display:flex;gap:6px">
-          <button id="copyBtn">Копировать</button>
+          <button id="copyBtn" class="icon-btn" title="Скопировать код" aria-label="Скопировать код">${COPY_SVG}</button>
           ${window.AndroidApp || IN_TELEGRAM ? `<button id="shareBtn" class="primary">${IN_TELEGRAM ? 'Пригласить' : 'Поделиться'}</button>` : ''}
         </span>
       </div>`;
+    // после копирования иконка на пару секунд сменяется галочкой
+    const copied = ok => {
+      $('copyBtn').innerHTML = ok ? CHECK_SVG : '✕';
+      if (ok) toast(`Код ${code} скопирован`);
+      setTimeout(() => { if ($('copyBtn')) $('copyBtn').innerHTML = COPY_SVG; }, 1800);
+    };
     $('copyBtn').onclick = () => {
-      if (window.AndroidApp) { AndroidApp.copy(code); $('copyBtn').textContent = 'Скопировано'; return; }
-      navigator.clipboard?.writeText(code).then(
-        () => { $('copyBtn').textContent = 'Скопировано'; },
-        () => { $('copyBtn').textContent = 'Не вышло'; });
+      if (window.AndroidApp) { AndroidApp.copy(code); copied(true); return; }
+      if (!navigator.clipboard) { copied(false); return; }
+      navigator.clipboard.writeText(code).then(() => copied(true), () => copied(false));
     };
     if ($('shareBtn')) $('shareBtn').onclick = () => {
       if (IN_TELEGRAM && tg) {
