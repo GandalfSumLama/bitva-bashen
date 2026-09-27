@@ -9,19 +9,31 @@
 <style>
   :root { --bg: #0b0f19; --panel: #141b2d; --line: #2a3658; --text: #e6ebf5; --muted: #8c97b2; --blue: #3d9bff; --gold: #ffc94d; --green: #5fe39a; --red: #ff4d5e; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font-family: Rubik, system-ui, sans-serif; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: Rubik, system-ui, sans-serif; color-scheme: dark; }
   .wrap { max-width: 1000px; margin: 0 auto; padding: 24px 16px 40px; }
-  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
   h1 { margin: 0; font-size: 26px; font-weight: 800; }
   h1 span { background: linear-gradient(90deg, var(--blue), #b9a8ff 50%, var(--red)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .upd { color: var(--muted); font-size: 13px; display: flex; gap: 10px; align-items: center; }
-  button { font: inherit; color: var(--text); background: #1b2440; border: 1px solid var(--line); border-radius: 9px; padding: 6px 12px; cursor: pointer; }
+  button, input { font: inherit; color: var(--text); background: #1b2440; border: 1px solid var(--line); border-radius: 9px; padding: 6px 12px; }
+  button { cursor: pointer; }
   button:hover { background: #243059; }
+  /* фильтр периода */
+  .filter { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px;
+    display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+  .presets button { padding: 6px 11px; font-size: 14px; }
+  .presets button.on { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
+  .range { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+  .range input { padding: 5px 8px; font-size: 14px; }
+  .period { width: 100%; font-size: 13px; color: var(--muted); }
+  .period b { color: var(--text); }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 14px; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
   .card .lbl { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
   .card .val { font-size: 28px; font-weight: 800; line-height: 1.1; }
   .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .card.fixed { border-style: dashed; }
   .val.gold { color: var(--gold); } .val.green { color: var(--green); } .val.blue { color: #7dbdff; }
   h2 { font-size: 16px; margin: 22px 0 10px; }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; overflow-x: auto; }
@@ -33,33 +45,50 @@
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   @media (max-width: 720px) { .two { grid-template-columns: 1fr; } }
   .chart svg { width: 100%; height: 190px; display: block; }
-  .legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .chart rect.hit { fill: transparent; cursor: pointer; }
+  .chart rect.hit:hover { fill: rgba(255,255,255,0.05); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
   .err { background: #3a1520; border: 1px solid #ff4d5e77; color: #ffb3ba; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
   .muted { color: var(--muted); font-size: 13px; }
   .note { color: var(--muted); font-size: 12px; margin-top: 18px; line-height: 1.5; }
+  .loading .grid, .loading .panel { opacity: .55; transition: opacity .15s; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap" id="wrap">
   <header>
     <h1><span>Битва башен</span> · статистика</h1>
     <div class="upd"><span id="upd">Загрузка…</span><button id="reload">Обновить</button></div>
   </header>
   <div id="err" class="err" hidden></div>
 
+  <div class="filter">
+    <div class="presets" id="presets">
+      <button data-p="today">Сегодня</button>
+      <button data-p="yesterday">Вчера</button>
+      <button data-p="7">7 дней</button>
+      <button data-p="30">30 дней</button>
+      <button data-p="all">Всё время</button>
+    </div>
+    <div class="range">
+      с <input type="date" id="dFrom"> по <input type="date" id="dTo"> <button id="apply">Показать</button>
+    </div>
+    <div class="period" id="period"></div>
+  </div>
+
   <div class="grid">
-    <div class="card"><div class="lbl">Игроков всего</div><div class="val blue" id="pTotal">—</div><div class="sub">уникальных устройств</div></div>
-    <div class="card"><div class="lbl">Сегодня / 7 дней / 30 дней</div><div class="val" id="pRecent">—</div><div class="sub">игроков за период</div></div>
+    <div class="card"><div class="lbl">Игроков за период</div><div class="val blue" id="pRange">—</div><div class="sub" id="pNew">—</div></div>
     <div class="card"><div class="lbl">Партий сыграно</div><div class="val" id="mTotal">—</div><div class="sub" id="opens">—</div></div>
     <div class="card"><div class="lbl">Общее время в боях</div><div class="val gold" id="tTotal">—</div><div class="sub" id="tPer">—</div></div>
     <div class="card"><div class="lbl">Средняя партия</div><div class="val green" id="tAvg">—</div><div class="sub">без партий, брошенных на середине</div></div>
+    <div class="card fixed"><div class="lbl">Всего · сегодня / 7 / 30 дней</div><div class="val" id="pAll">—</div><div class="sub" id="pRecent">—</div></div>
   </div>
 
-  <h2>Последние 30 дней</h2>
+  <h2 id="chartTitle">По дням</h2>
   <div class="panel chart">
     <svg id="chart" viewBox="0 0 600 190" preserveAspectRatio="none"></svg>
-    <div class="legend"><span><i style="background:#3d9bff"></i>игроки</span><span><i style="background:#ffc94d"></i>партии</span><span id="chartMax"></span></div>
+    <div class="legend"><span><i style="background:#3d9bff"></i>игроки</span><span><i style="background:#ffc94d"></i>партии</span><span id="chartMax"></span><span>нажмите на день, чтобы посмотреть только его</span></div>
   </div>
 
   <div class="two">
@@ -79,12 +108,14 @@
   <div class="panel"><table id="levels"></table></div>
 
   <p class="note">Статистика анонимная: игра отправляет только случайный номер устройства, платформу, режим, итог и длительность партии.
-    «Партия» — один бой одного игрока (в онлайн-бою двое игроков, это две партии). Время — только сам бой, без меню.</p>
+    «Игрок» — одно устройство. «Партия» — один бой одного игрока (в онлайн-бою на двоих — две партии). Время — только сам бой, без меню.
+    Карточка с пунктирной рамкой не зависит от выбранного периода. Дни считаются по вашему часовому поясу.</p>
 </div>
 
 <script>
 const URL_RPC = 'https://ooamacfyfdmghqdcaczi.supabase.co/rest/v1/rpc/get_stats';
 const KEY = 'sb_publishable_5j-d5wQPZrqvG_LVhEAsLA_UAdoKALs';
+const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; } })();
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const num = n => Number(n || 0).toLocaleString('ru-RU');
@@ -99,6 +130,35 @@ const PLAT = { telegram: 'Telegram', android: 'Android', windows: 'Windows', web
 const DIFF = ['Лёгкий', 'Средний', 'Сложный', 'Хардкор'];
 const pct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
 
+// ---------- Период: даты в формате ГГГГ-ММ-ДД по местному времени; «по» включительно ----------
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (d, k) => { const x = new Date(d); x.setDate(x.getDate() + k); return x; };
+const ruDate = s => parseYmd(s).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+let sel = { preset: '30', from: null, to: null };     // from/to — строки ГГГГ-ММ-ДД или null (всё время)
+
+function presetRange(p) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (p === 'today') return [ymd(today), ymd(today)];
+  if (p === 'yesterday') { const y = addDays(today, -1); return [ymd(y), ymd(y)]; }
+  if (p === 'all') return [null, null];
+  return [ymd(addDays(today, -(+p - 1))), ymd(today)];
+}
+function setSel(preset, from, to) {
+  if (from && to && from > to) [from, to] = [to, from];
+  sel = { preset, from, to };
+  for (const b of $('presets').querySelectorAll('button')) b.classList.toggle('on', b.dataset.p === preset);
+  $('dFrom').value = from || ''; $('dTo').value = to || '';
+  const h = preset && preset !== 'custom' ? `#${preset}` : `#${from}_${to}`;
+  if (location.hash !== h) history.replaceState(null, '', h);
+  load();
+}
+function periodText(s) {
+  if (!sel.from) return `Период: <b>всё время</b>` + (s && s.from ? ` (с ${ruDate(s.from.slice(0, 10))})` : '');
+  return sel.from === sel.to ? `Период: <b>${ruDate(sel.from)}</b>` : `Период: <b>${ruDate(sel.from)} — ${ruDate(sel.to)}</b>`;
+}
+
 function table(el, head, rows, empty) {
   el.innerHTML = rows.length
     ? `<tr>${head.map(([t, n]) => `<th${n ? ' class="n"' : ''}>${t}</th>`).join('')}</tr>` +
@@ -107,55 +167,94 @@ function table(el, head, rows, empty) {
 }
 
 function chart(days) {
-  const svg = $('chart'), Wd = 600, Hd = 190, pad = 18;
+  const svg = $('chart'), Wd = 600, Hd = 190, pad2 = 18;
+  if (!days.length) { svg.innerHTML = ''; $('chartMax').textContent = 'нет дней в периоде'; return; }
   const maxP = Math.max(1, ...days.map(d => d.players)), maxM = Math.max(1, ...days.map(d => d.matches));
-  const bw = Wd / days.length;
-  let out = `<line x1="0" y1="${Hd - pad}" x2="${Wd}" y2="${Hd - pad}" stroke="#2a3658"/>`;
+  const bw = Wd / days.length, step = Math.max(1, Math.ceil(days.length / 10));
+  let out = `<line x1="0" y1="${Hd - pad2}" x2="${Wd}" y2="${Hd - pad2}" stroke="#2a3658"/>`;
   days.forEach((d, i) => {
-    const x = i * bw, h1 = (Hd - pad * 2) * d.players / maxP, h2 = (Hd - pad * 2) * d.matches / maxM;
-    out += `<rect x="${x + bw * 0.12}" y="${Hd - pad - h1}" width="${bw * 0.36}" height="${h1}" fill="#3d9bff" rx="1.5"><title>${d.day}: игроков ${d.players}</title></rect>`;
-    out += `<rect x="${x + bw * 0.52}" y="${Hd - pad - h2}" width="${bw * 0.36}" height="${h2}" fill="#ffc94d" rx="1.5"><title>${d.day}: партий ${d.matches}, ${dur(d.seconds)}</title></rect>`;
-    if (i % 5 === 4 || i === days.length - 1) out += `<text x="${x + bw / 2}" y="${Hd - 4}" fill="#8c97b2" font-size="10" text-anchor="middle">${d.day.slice(8)}.${d.day.slice(5, 7)}</text>`;
+    const x = i * bw, h1 = (Hd - pad2 * 2) * d.players / maxP, h2 = (Hd - pad2 * 2) * d.matches / maxM;
+    const tip = `${ruDate(d.day)}: игроков ${d.players}, партий ${d.matches}, ${dur(d.seconds)}`;
+    out += `<rect x="${x + bw * 0.12}" y="${Hd - pad2 - h1}" width="${bw * 0.36}" height="${h1}" fill="#3d9bff" rx="1.5"/>`;
+    out += `<rect x="${x + bw * 0.52}" y="${Hd - pad2 - h2}" width="${bw * 0.36}" height="${h2}" fill="#ffc94d" rx="1.5"/>`;
+    out += `<rect class="hit" data-day="${d.day}" x="${x}" y="0" width="${bw}" height="${Hd}"><title>${tip} — нажмите, чтобы открыть день</title></rect>`;
+    if (i % step === step - 1 || i === days.length - 1 || days.length <= 10)
+      out += `<text x="${x + bw / 2}" y="${Hd - 4}" fill="#8c97b2" font-size="10" text-anchor="middle">${d.day.slice(8)}.${d.day.slice(5, 7)}</text>`;
   });
   svg.innerHTML = out;
   const realP = Math.max(0, ...days.map(d => d.players)), realM = Math.max(0, ...days.map(d => d.matches));
   $('chartMax').textContent = realP || realM ? `максимум за день: ${realP} игроков, ${realM} партий` : 'пока без данных';
 }
+$('chart').addEventListener('click', e => {
+  const day = e.target.closest('rect.hit')?.dataset.day;
+  if (day) setSel('custom', day, day);
+});
 
+let reqId = 0;
 async function load() {
+  const id = ++reqId;
   $('err').hidden = true;
+  $('wrap').classList.add('loading');
   $('upd').textContent = 'Загрузка…';
+  $('period').innerHTML = periodText();
+  const body = { p_tz: TZ };
+  if (sel.from) body.p_from = parseYmd(sel.from).toISOString();
+  if (sel.to) body.p_to = addDays(parseYmd(sel.to), 1).toISOString();   // «по» включительно — до начала следующего дня
   try {
-    const r = await fetch(URL_RPC, { method: 'POST', headers: { apikey: KEY, 'Content-Type': 'application/json' }, body: '{}' });
+    const r = await fetch(URL_RPC, { method: 'POST', headers: { apikey: KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
     const s = await r.json();
-    $('pTotal').textContent = num(s.players_total);
-    $('pRecent').textContent = `${num(s.players_today)} / ${num(s.players_7d)} / ${num(s.players_30d)}`;
-    $('mTotal').textContent = num(s.matches_total);
-    $('opens').textContent = `запусков игры: ${num(s.opens_total)}`;
+    if (id !== reqId) return;                          // пока грузилось, выбрали другой период
+    if (s.players === undefined) throw new Error('old-function');
+    $('pRange').textContent = num(s.players);
+    $('pNew').textContent = `из них новых: ${num(s.new_players)}`;
+    $('mTotal').textContent = num(s.matches);
+    $('opens').textContent = `запусков игры: ${num(s.opens)}`;
     $('tTotal').textContent = dur(s.seconds_total);
     $('tPer').textContent = `в среднем на игрока: ${dur(s.seconds_per_player)}`;
     $('tAvg').textContent = dur(s.seconds_avg);
+    $('pAll').textContent = num(s.players_total);
+    $('pRecent').textContent = `сегодня ${num(s.players_today)} · 7 дней ${num(s.players_7d)} · 30 дней ${num(s.players_30d)}`;
     table($('modes'), [['Режим'], ['Партий', 1], ['Средняя', 1], ['Победы', 1], ['Поражения', 1], ['Бросили', 1]],
-      s.by_mode.map(m => [esc(MODE[m.mode] || m.mode || '?'), num(m.matches), dur(m.avg_seconds), num(m.wins), num(m.losses), num(m.left_early)]), 'Партий пока нет');
+      s.by_mode.map(m => [esc(MODE[m.mode] || m.mode || '?'), num(m.matches), dur(m.avg_seconds), num(m.wins), num(m.losses), num(m.left_early)]), 'Партий за период нет');
     table($('platforms'), [['Платформа'], ['Игроков', 1]],
-      s.by_platform.map(p => [esc(PLAT[p.platform] || p.platform), num(p.players)]), 'Пока пусто');
+      s.by_platform.map(p => [esc(PLAT[p.platform] || p.platform), num(p.players)]), 'Пусто');
     table($('diffs'), [['Сложность'], ['Партий', 1], ['Побед игрока', 1]],
-      s.by_diff.map(d => [esc(DIFF[d.diff] || '?'), num(d.matches), `${num(d.wins)} (${pct(d.wins, d.matches)})`]), 'Партий пока нет');
+      s.by_diff.map(d => [esc(DIFF[d.diff] || '?'), num(d.matches), `${num(d.wins)} (${pct(d.wins, d.matches)})`]), 'Партий за период нет');
     table($('levels'), [['Уровень'], ['Попыток', 1], ['Побед', 1], ['Прошли игроков', 1]],
-      s.levels.map(l => [`Уровень ${l.level}`, num(l.tries), `${num(l.wins)} (${pct(l.wins, l.tries)})`, num(l.passed_by)]), 'Уровни пока не играли');
+      s.levels.map(l => [`Уровень ${l.level}`, num(l.tries), `${num(l.wins)} (${pct(l.wins, l.tries)})`, num(l.passed_by)]), 'Уровни за период не играли');
+    $('chartTitle').textContent = s.daily.length > 1 ? `По дням (${s.daily.length})` : 'За день';
     chart(s.daily);
+    $('period').innerHTML = periodText(s);
     $('upd').textContent = 'Обновлено: ' + new Date(s.updated_at).toLocaleString('ru-RU');
   } catch (e) {
+    if (id !== reqId) return;
     $('upd').textContent = 'Ошибка';
     $('err').hidden = false;
-    $('err').textContent = /get_stats|PGRST202|404/.test(e.message)
-      ? 'База ещё не настроена: выполните analytics/setup.sql в Supabase → SQL Editor.'
+    $('err').textContent = /old-function|PGRST202|get_stats/.test(e.message)
+      ? 'Нужно обновить функцию статистики: выполните analytics/stats-v2.sql в Supabase → SQL Editor.'
       : 'Не удалось загрузить статистику: ' + e.message;
+  } finally {
+    if (id === reqId) $('wrap').classList.remove('loading');
   }
 }
+
+for (const b of $('presets').querySelectorAll('button')) b.onclick = () => { const [f, t] = presetRange(b.dataset.p); setSel(b.dataset.p, f, t); };
+$('apply').onclick = () => {
+  const f = $('dFrom').value, t = $('dTo').value;
+  if (!f && !t) { setSel('all', null, null); return; }
+  setSel('custom', f || t, t || f);
+};
 $('reload').onclick = load;
-load();
+// период из адреса (#7, #today, #2026-09-01_2026-09-27) — ссылку можно сохранить в закладки
+(() => {
+  const h = location.hash.slice(1);
+  const m = h.match(/^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/);
+  if (m) { setSel('custom', m[1], m[2]); return; }
+  const p = ['today', 'yesterday', '7', '30', 'all'].includes(h) ? h : '30';
+  const [f, t] = presetRange(p);
+  setSel(p, f, t);
+})();
 </script>
 </body>
 </html>
