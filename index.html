@@ -110,6 +110,20 @@
   .lvl-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
   .stars-total { font-size: 14px; color: var(--gold); font-weight: 700; }
   .lvl-goal { font-size: 12px !important; }
+  /* ---------- Комната хоста ---------- */
+  .room { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+  .switch-row { display: flex; align-items: center; gap: 10px; font-size: 13.5px; cursor: pointer; user-select: none; }
+  .switch-row input { position: absolute; opacity: 0; pointer-events: none; }
+  .switch-row .sw { flex: none; width: 38px; height: 22px; border-radius: 11px; background: #0e1426; border: 1px solid var(--line); position: relative; transition: background .15s; }
+  .switch-row .sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+  .switch-row input:checked + .sw { background: var(--blue); border-color: var(--blue); }
+  .switch-row input:checked + .sw::after { transform: translateX(16px); background: #fff; }
+  .room-players { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .seat { display: flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 6px 8px; border-radius: 9px; background: #0e1426; border: 1px solid var(--line); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .seat.empty { opacity: .5; border-style: dashed; }
+  .seg button:disabled { opacity: .3; }
+  .ov-vote { margin: -6px 0 16px; padding: 8px 12px; border-radius: 10px; background: #0e1426; border: 1px solid var(--line); font-size: 14px; }
+  body.compact .ov-vote { margin: -2px 0 10px; font-size: 13px; }
   .ov-time {
     display: inline-block; margin: -8px 0 18px; padding: 5px 14px; border-radius: 999px;
     background: #0e1426; border: 1px solid var(--line); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
@@ -431,8 +445,10 @@
     <p id="ovText"></p>
     <div id="ovTime" class="ov-time hidden"></div>
     <div id="ovStars" class="ov-stars hidden"></div>
+    <div id="ovVote" class="ov-vote hidden"></div>
     <div class="row">
       <button class="primary hidden" id="nextBtn">Следующий уровень</button>
+      <button class="primary hidden" id="watchBtn">Смотреть бой</button>
       <button class="primary" id="rematchBtn">Реванш</button>
       <button id="menuBtn">В меню</button>
     </div>
@@ -494,7 +510,7 @@ const NETWORK_ENABLED = TG_LAUNCH;
 // Ссылка на игру в Telegram: приглашение в комнату — ?startapp=КОД (друг сразу попадает в комнату)
 // Главное Mini App бота (галерея Pleasure Union): t.me/бот?startapp=… — отдельного «/play» у бота нет
 const TG_APP_LINK = 'https://t.me/pleasure_union_bot';
-const PEER_PREFIX = 'bitva-bashen-v4-';   // v4 — способности, особая башня, ландшафт (старая версия с новой не соединится)
+const PEER_PREFIX = 'bitva-bashen-v5-';   // v5 — комнаты до 4 игроков и боты (старая версия с новой не соединится)
 const CODE_LEN = 4;      // код комнаты — 4 цифры, его легко продиктовать и ввести
 
 const COL = {
@@ -690,6 +706,10 @@ const RULES_HTML = `
     <li><b>Одиночная игра:</b> в «Тренировке» выбираются сложность ботов и число соперников (до трёх).
       В «Уровнях» каждая карта создаётся заново, и с каждым уровнем больше башен и соперников, а боты сильнее.
       Боты воюют и друг с другом, кроме хардкора: там все боты идут на вас.</li>
+    ${NETWORK_ENABLED ? `<li><b>Онлайн:</b> создайте комнату и пригласите до трёх друзей. Хост выбирает, сколько игроков будет в бою (2–4),
+      и может включить <b>ботов на свободные места</b> с нужной сложностью, затем нажимает «Начать игру».
+      Если игрок выйдет посреди боя, за него доиграет бот. Выбывший может досмотреть бой.
+      После боя любой может предложить <b>реванш</b>: остальные принимают или отказываются, и бой начнётся, когда согласятся все оставшиеся.</li>` : ''}
     <li>Главное здание само производит войска. Серые башни нейтральные: в них сидит гарнизон, который нужно перебить.</li>
     <li><b>Бустеры</b> спрятаны в некоторых серых башнях, над ними золотой <b>?</b>. Бустер получает тот, кто первым захватит башню:
       ${BOOSTERS.map(b => `<br>${b.icon} <b>${b.name}</b>${b.secs ? ` (${b.secs} с)` : ''}: ${b.text}.`).join('')}</li>
@@ -952,23 +972,28 @@ function genArenaMap(players, towerCount, enemyBonus, terrain) {
   return nodes;
 }
 
-// cfg: { duel: true } для сетевой игры или { players, towers, bonus, diffs } для игры с ботами
+// cfg: { players, towers, bonus, diffs } — игра с ботами (человек — игрок 0, боты — 1, 2…);
+// онлайн: { duel, players, towers, botSeats, diffs, humanSeats } — люди и боты на любых местах.
+// duel — симметричная карта на двоих.
 function newGame(cfg) {
   const players = cfg.duel ? 2 : cfg.players;
   const terrain = [];
   const nodes = cfg.duel ? genDuelMap(terrain) : genArenaMap(players, cfg.towers, cfg.bonus || 0, terrain);
   const bots = [], prodMul = Array(players).fill(1);
-  if (!cfg.duel) for (let p = 1; p < players; p++) {
-    const D = DIFFS[cfg.diffs[p - 1]];
-    bots.push({ p, diff: cfg.diffs[p - 1], timer: D.firstMove + p * 0.4 });
+  const botSeats = cfg.botSeats || (cfg.duel ? [] : Array.from({ length: players - 1 }, (_, i) => i + 1));
+  botSeats.forEach((p, i) => {
+    const D = DIFFS[cfg.diffs[i]];
+    bots.push({ p, diff: cfg.diffs[i], timer: D.firstMove + p * 0.4 });
     prodMul[p] = D.prodMul;
     nodes[p].units = Math.max(5, nodes[p].units + D.startBonus);
     nodes[p].def = D.baseDef || 0;
-  }
+  });
   placeSpecial(nodes, !!cfg.duel, terrain);
   placeBoosters(nodes, !!cfg.duel);
   return {
     nodes, terrain, units: [], nextId: 1, countdown: 3, over: null, players, alive: Array(players).fill(true), bots,
+    humanSeats: cfg.humanSeats || [0],      // какие игроки — люди (боты охотнее бьют людей)
+    botSeats: botSeats.slice(),
     time: 0, boostUntil: Array(players).fill(0), towerCnt: Array(players).fill(0), prodMul,
     buffs: Array.from({ length: players }, () => ({})),   // до какого g.time действует каждый бустер
     abil: Array.from({ length: players }, () => abilStart()),   // с какого g.time готова каждая способность
@@ -1231,6 +1256,7 @@ function step(g, dt) {
   const alive = g.alive.map((a, p) => (a ? p : -1)).filter(p => p >= 0);
   if (alive.length === 1) g.over = alive[0];
   else if (mode === 'solo' && !g.alive[0]) g.over = g.nodes[0].owner;   // игрок проиграл, боты ещё воюют
+  else if (mode === 'host' && !alive.some(p => isHuman(g, p))) g.over = alive[0];   // в онлайне не осталось людей — дальше боты сами
   if (g.over !== null) onGameOver(g.over);
 }
 
@@ -1244,7 +1270,10 @@ function eliminate(g, p) {
 }
 
 function onEliminated(p) {
-  if (p !== me && game && game.over === null) toast(`${TEAM_NAME[p]} выбывают!`);
+  if (!game || game.over !== null || mode === 'sim') return;
+  if (p !== me) toast(`${TEAM_NAME[p]} выбывают!`);
+  // (чуть позже: если из-за этого бой сразу закончился, покажется обычный итог)
+  else if (mode === 'host' || mode === 'guest') setTimeout(() => { if (game && game.over === null && !game.alive[me]) onSelfOut(); }, 0);
 }
 
 // ---------------------------------------------------------------------
@@ -1253,6 +1282,7 @@ function onEliminated(p) {
 // Бот играет по тем же правилам, что и человек: только постоянными путями
 // (без разовых бросков) и не больше двух действий за раз.
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const isHuman = (g, p) => p >= 0 && (g.humanSeats || [0]).includes(p);
 
 // Сколько войск нужно, чтобы взять башню потоком из k путей
 function attackNeed(g, t, d, power, k) {
@@ -1300,7 +1330,7 @@ function botAbility(g, P, D, incoming, ours) {
       const need = t.units * CFG.strength[t.def] + 3 + (t.def ? CFG.shootRate[t.def] * 1.5 : 0);
       if (need > units * 0.85) continue;
       const score = -need - dist(base, t) * 0.02 + (t.booster >= 0 ? 15 : 0)
-        + (t.owner === 0 ? D.humanBonus : t.owner > 0 ? D.botPenalty : 0);
+        + (isHuman(g, t.owner) ? D.humanBonus : t.owner >= 0 ? D.botPenalty : 0);
       if (score > bs) { bs = score; best = t; }
     }
     if (best && bs > -40) return !useAbility(g, P, 'drop', best.x, best.y, best.id);
@@ -1394,7 +1424,7 @@ function botStep(g, dt, bot) {
     const d0 = dist(used[0], t) * travelFactor(g, used[0], t);   // через болото путь «длиннее»
     const score = -attackNeed(g, t, d0, power, used.length) - d0 * 0.05
       + (t.type === 'base' ? 50 : 0) + (isEnemy(t.owner) ? 6 : 0) + (t.booster >= 0 ? 15 : 0) + (t.special >= 0 ? 20 : 0)
-      + (t.owner === 0 ? D.humanBonus : isEnemy(t.owner) ? D.botPenalty : 0);
+      + (isHuman(g, t.owner) ? D.humanBonus : isEnemy(t.owner) ? D.botPenalty : 0);
     if (score > bestScore) { bestScore = score; best = t; bestSrc = used; }
   }
   if (best) {
@@ -1452,6 +1482,108 @@ function peerErrorText(err) {
 const COPY_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="#5fe39a" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>';
 
+// ---------- Комната хоста: до 4 игроков, свободные места можно отдать ботам ----------
+// guests: [{ c: соединение, p: номер игрока в текущем бою (или -1), style: вид башен }]
+let guests = [];
+let hosting = false;                         // комната создана (хост ждёт игроков или играет)
+const room = { max: 2, bots: false, diff: 1 };
+let votes = new Set();                       // кто из людей согласился на реванш (номера игроков)
+
+// Хост → всем гостям; гость → хосту
+function broadcast(msg) { for (const g of guests) if (g.c.open) try { g.c.send(msg); } catch (e) {} }
+
+function roomHumans() { return 1 + guests.length; }
+function roomCanStart() { return roomHumans() >= 2 || (room.bots && room.max >= 2); }
+// Кто будет в бою: люди по порядку (хост — 0), затем боты на свободные места
+function roomSeats() {
+  const humans = roomHumans();
+  const players = room.bots ? Math.max(room.max, humans) : humans;
+  const bots = [];
+  for (let p = humans; p < players; p++) bots.push(p);
+  return { humans, players, bots };
+}
+
+function renderRoom() {
+  if (!hosting || !$('roomPlayers')) return;
+  const humans = roomHumans();
+  if (room.max < humans) room.max = humans;
+  for (const b of $('roomMax').querySelectorAll('button')) {
+    b.classList.toggle('on', +b.dataset.v === room.max);
+    b.disabled = +b.dataset.v < humans;       // нельзя мест меньше, чем уже зашло людей
+  }
+  $('roomBots').checked = room.bots;
+  $('roomDiffField').classList.toggle('hidden', !room.bots);
+  for (const b of $('roomDiff').querySelectorAll('button')) b.classList.toggle('on', +b.dataset.v === room.diff);
+  let html = '';
+  for (let p = 0; p < room.max; p++) {
+    const who = p === 0 ? 'вы' : p < humans ? 'игрок' : room.bots ? `бот · ${DIFFS[room.diff].name.toLowerCase()}` : 'свободно';
+    const empty = p >= humans && !room.bots;
+    html += `<div class="seat${empty ? ' empty' : ''}"><span class="dot" style="background:${COL[p].main}"></span><b>${TEAM_NAME[p]}</b> — ${who}</div>`;
+  }
+  $('roomPlayers').innerHTML = html;
+  $('roomStart').disabled = !roomCanStart();
+  setStatus($('hostStatus'), humans < room.max
+    ? (humans === 1 ? 'Ждём игроков… ' : `В комнате ${humans} из ${room.max}. `) + (IN_TELEGRAM ? 'Нажмите «Пригласить».' : 'Отправьте друзьям этот код.')
+    : `Все места заняты (${humans} из ${room.max}). Можно начинать!`, 'ok');
+  broadcast({ t: 'lobby', humans, max: room.max, bots: room.bots, diff: room.diff });
+}
+
+// Гость ушёл (закрыл игру, отказался от реванша или пропала связь)
+function onGuestGone(g, why) {
+  const i = guests.indexOf(g);
+  if (i < 0) return;
+  guests.splice(i, 1);
+  try { g.c.close(); } catch (e) {}
+  if (!game) { renderRoom(); return; }
+  const p = g.p;
+  if (game.over === null && p >= 0 && game.alive[p]) {
+    // посреди боя его место занимает бот, чтобы бой не развалился
+    game.bots.push({ p, diff: 1, timer: 0.5 });
+    game.botSeats.push(p);
+    game.humanSeats = game.humanSeats.filter(x => x !== p);
+    const text = `${TEAM_NAME[p]} ${why === 'left' ? 'вышли' : 'отключились'} — за них играет бот`;
+    toast(text, 3000); broadcast({ t: 'info', text, bot: p });
+  } else if (game.over !== null && p >= 0) {
+    const text = `${TEAM_NAME[p]} отказались от реванша`;
+    toast(text, 3000); broadcast({ t: 'info', text });
+    votes.delete(p);
+    sendVotes(); checkRematch();
+  }
+}
+
+// ---------- Реванш: кто-то предложил — остальные принимают или отказываются ----------
+function rematchNeed() { return [0, ...guests.filter(g => g.p >= 0).map(g => g.p)]; }
+function sendVotes() {
+  const msg = { t: 'votes', yes: [...votes], need: rematchNeed(), bots: room.bots };
+  broadcast(msg);
+  renderVotes(msg);
+}
+function checkRematch() {
+  const need = rematchNeed();
+  if (need.length >= 2 || room.bots) { if (need.every(p => votes.has(p)) && votes.size) startMatch(); }
+  else renderVotes({ yes: [...votes], need, bots: room.bots });
+}
+// Показ голосования в окне конца боя (у всех игроков)
+function renderVotes(v) {
+  if (!game || game.over === null || mode === 'solo') return;
+  const yes = v.yes || [], need = v.need || [];
+  const iVoted = yes.includes(me), othersYes = yes.filter(p => p !== me);
+  const alone = need.length < 2 && !v.bots;
+  let text = '';
+  if (alone) text = 'Все соперники ушли — реванш не получится.';
+  else if (yes.length) {
+    const wait = need.filter(p => !yes.includes(p)).map(p => TEAM_NAME[p]);
+    text = `🔁 Реванш: согласны ${yes.map(p => p === me ? 'вы' : TEAM_NAME[p]).join(', ')}` + (wait.length ? ` · ждём: ${wait.join(', ')}` : '');
+  }
+  $('ovVote').textContent = text;
+  $('ovVote').classList.toggle('hidden', !text);
+  const rb = $('rematchBtn');
+  rb.classList.toggle('hidden', alone);
+  rb.disabled = iVoted;
+  rb.textContent = iVoted ? 'Ждём остальных…' : othersYes.length ? 'Принять реванш' : 'Реванш';
+  $('menuBtn').textContent = !iVoted && othersYes.length ? 'Отказаться' : 'В меню';
+}
+
 function hostGame() {
   if (!peerAvailable()) return;
   $('hostBtn').disabled = true;
@@ -1461,6 +1593,7 @@ function hostGame() {
   const p = peer = new Peer(PEER_PREFIX + code, { debug: 0 });
   p.on('open', () => {
     if (p !== peer) return;
+    hosting = true; guests = [];
     $('hostArea').innerHTML = `
       <div class="code-box">
         <span class="code">${code}</span>
@@ -1468,7 +1601,22 @@ function hostGame() {
           <button id="copyBtn" class="icon-btn" title="Скопировать код" aria-label="Скопировать код">${COPY_SVG}</button>
           ${window.AndroidApp || IN_TELEGRAM ? `<button id="shareBtn" class="primary">${IN_TELEGRAM ? 'Пригласить' : 'Поделиться'}</button>` : ''}
         </span>
+      </div>
+      <div class="room">
+        <div class="field">Игроков в бою
+          <div class="seg" id="roomMax"><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button></div>
+        </div>
+        <label class="switch-row"><input type="checkbox" id="roomBots"><span class="sw"></span>Боты на свободные места</label>
+        <div class="field hidden" id="roomDiffField">Сложность ботов
+          <div class="seg" id="roomDiff">${DIFFS.map((d, i) => `<button data-v="${i}"${i === 3 ? ' class="hardcore"' : ''}>${d.name}</button>`).join('')}</div>
+        </div>
+        <div class="room-players" id="roomPlayers"></div>
+        <button class="primary" id="roomStart" style="width:100%">Начать игру</button>
       </div>`;
+    for (const b of $('roomMax').querySelectorAll('button')) b.onclick = () => { room.max = +b.dataset.v; renderRoom(); };
+    for (const b of $('roomDiff').querySelectorAll('button')) b.onclick = () => { room.diff = +b.dataset.v; renderRoom(); };
+    $('roomBots').onchange = e => { room.bots = e.target.checked; renderRoom(); };
+    $('roomStart').onclick = () => { if (roomCanStart()) { mode = 'host'; me = 0; startMatch(); } };
     // после копирования иконка на пару секунд сменяется галочкой
     const copied = ok => {
       $('copyBtn').innerHTML = ok ? CHECK_SVG : '✕';
@@ -1492,25 +1640,34 @@ function hostGame() {
         AndroidApp.share(`Заходи в «Битву башен»! Код комнаты: ${code}`);
       }
     };
-    setStatus($('hostStatus'), IN_TELEGRAM ? 'Ждём соперника… Нажмите «Пригласить».' : 'Ждём соперника… Отправьте ему этот код.', 'ok');
     $('onlineCard').classList.add('hosting');     // пока ждём — поле для кода не нужно
+    renderRoom();
   });
   p.on('connection', c => {
     if (p !== peer) return;
-    if (conn) {                            // комната уже занята
-      c.on('open', () => { c.send({ t: 'full' }); setTimeout(() => c.close(), 300); });
+    // бой уже идёт или мест нет — вежливо отказываем
+    // (мест не хватает — число мест растёт само, до четырёх)
+    const reject = game ? 'busy' : roomHumans() >= 4 ? 'full' : null;
+    if (reject) {
+      c.on('open', () => { c.send({ t: reject }); setTimeout(() => c.close(), 300); });
       return;
     }
-    conn = c;
-    c.on('open', () => { if (c === conn) { mode = 'host'; me = 0; startMatch(); } });
-    c.on('data', d => { if (c === conn) onHostData(d); });
-    c.on('close', () => { if (c === conn) onDisconnect(); });
-    c.on('error', () => { if (c === conn) onDisconnect(); });
+    const g = { c, p: -1, style: 'art' };
+    c.on('open', () => {
+      if (p !== peer) return;
+      guests.push(g);
+      if (roomHumans() > room.max) room.max = roomHumans();   // зашёл ещё один — место добавляется само
+      renderRoom();
+      tgHaptic('light');
+    });
+    c.on('data', d => { if (p === peer && guests.includes(g)) onHostData(d, g); });
+    c.on('close', () => { if (p === peer) onGuestGone(g, 'lost'); });
+    c.on('error', () => { if (p === peer) onGuestGone(g, 'lost'); });
   });
   p.on('error', err => {
     if (p !== peer) return;
     if (err.type === 'unavailable-id') { p.destroy(); hostGame(); return; }
-    if (mode === 'host' && conn) return;
+    if (hosting && guests.length) return;
     setStatus($('hostStatus'), peerErrorText(err), 'err');
     $('hostBtn').disabled = false;
     $('joinBtn').disabled = false;
@@ -1528,7 +1685,7 @@ function joinGame() {
   p.on('open', () => {
     if (p !== peer) return;
     const c = conn = p.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
-    c.on('open', () => { if (c === conn) setStatus($('joinStatus'), 'Подключено! Ждём начала…', 'ok'); });
+    c.on('open', () => { if (c === conn) setStatus($('joinStatus'), 'Подключено! Ждём, пока хост начнёт игру…', 'ok'); });
     c.on('data', d => { if (c === conn) onGuestData(d); });
     c.on('close', () => { if (c === conn) onDisconnect(); });
     c.on('error', () => { if (c === conn) onDisconnect(); });
@@ -1542,38 +1699,64 @@ function joinGame() {
   });
 }
 
-function onHostData(d) {
-  if (!d || !game) return;
-  if (d.t === 'route' && Array.isArray(d.from)) setRoute(game, 1, d.from.map(Number), +d.to, true);
-  else if (d.t === 'unroute' && Array.isArray(d.ids)) for (const id of d.ids) clearRoute(game, 1, +id, d.to == null ? undefined : +d.to);
-  else if (d.t === 'up') upgrade(game, 1, +d.id, d.b);
-  else if (d.t === 'abil') useAbility(game, 1, String(d.k), +d.x, +d.y, d.id == null ? -1 : +d.id);
-  else if (d.t === 'style' && TOWER_STYLES.includes(d.v)) game.styles[1] = d.v;   // вид башен гостя
-  else if (d.t === 'rematch' && game.over !== null) startMatch();
-  else if (d.t === 'leave') onOpponentLeft();
+// Команды от гостя g (его номер в бою — g.p)
+function onHostData(d, g) {
+  if (!d) return;
+  if (d.t === 'leave') { onGuestGone(g, 'left'); return; }
+  if (d.t === 'style' && TOWER_STYLES.includes(d.v)) {           // вид башен гостя — запоминаем и рассказываем остальным
+    g.style = d.v;
+    if (game && game.styles && g.p >= 0) { game.styles[g.p] = d.v; broadcast({ t: 'style', p: g.p, v: d.v }); }
+    return;
+  }
+  if (!game || g.p < 0) return;
+  const P = g.p;
+  if (d.t === 'route' && Array.isArray(d.from)) setRoute(game, P, d.from.map(Number), +d.to, true);
+  else if (d.t === 'unroute' && Array.isArray(d.ids)) for (const id of d.ids) clearRoute(game, P, +id, d.to == null ? undefined : +d.to);
+  else if (d.t === 'up') upgrade(game, P, +d.id, d.b);
+  else if (d.t === 'abil') useAbility(game, P, String(d.k), +d.x, +d.y, d.id == null ? -1 : +d.id);
+  else if (d.t === 'rematch' && game.over !== null) { votes.add(P); sendVotes(); checkRematch(); }
 }
 
 function onGuestData(d) {
   if (!d) return;
-  if (d.t === 'full') {
-    setStatus($('joinStatus'), 'В этой комнате уже идёт игра.', 'err');
+  if (d.t === 'full' || d.t === 'busy') {
+    setStatus($('joinStatus'), d.t === 'full' ? 'В комнате уже 4 игрока — мест нет.' : 'В этой комнате уже идёт игра.', 'err');
+    return;
+  }
+  if (d.t === 'lobby') {                           // ждём в комнате: сколько людей, будут ли боты
+    if (!game) setStatus($('joinStatus'), `Подключено! В комнате ${d.humans} из ${d.max}` +
+      (d.bots ? ` · свободные места займут боты (${DIFFS[d.diff] ? DIFFS[d.diff].name.toLowerCase() : ''})` : '') + '. Ждём, пока хост начнёт…', 'ok');
     return;
   }
   if (d.t === 'leave') { onOpponentLeft(); return; }
-  if (d.t === 'style') { if (game && game.styles && TOWER_STYLES.includes(d.v)) game.styles[0] = d.v; return; }   // вид башен хоста
+  if (d.t === 'info') {                            // кто-то вышел / отказался
+    toast(d.text, 3000);
+    if (game && d.bot >= 0 && game.botSeats && !game.botSeats.includes(d.bot)) game.botSeats.push(d.bot);
+    return;
+  }
+  if (d.t === 'votes') { lastVotes = d; renderVotes(d); return; }
+  if (d.t === 'style') {                           // вид башен другого игрока
+    const p = d.p == null ? 0 : +d.p;
+    if (game && game.styles && TOWER_STYLES.includes(d.v)) game.styles[p] = d.v;
+    return;
+  }
   if (d.t === 'init') {
-    mode = 'guest'; me = 1;
+    mode = 'guest'; me = +d.me || 1;
     H = +d.h || 720; resize();                     // карта той же формы, что у хоста
+    const players = Math.min(4, Math.max(2, +d.players || 2));
+    const styles = Array.isArray(d.styles) ? d.styles.slice(0, players) : [d.style];
+    styles[me] = settings.towers;
     game = {
       nodes: d.nodes.map((n, i) => ({ id: i, x: n[0], y: n[1], r: n[2], type: n[3] ? 'base' : 'tower', owner: -1, units: 0, prod: 0, def: 0, route: -1, route2: -1, booster: -1, frozen: 0, style: n[4] || 0, special: n[5] == null ? -1 : +n[5] })),
       terrain: Array.isArray(d.terrain) ? d.terrain : [],
-      units: [], countdown: 3, over: null, players: 2, alive: [true, true], bots: [],
-      time: 0, boostUntil: [0, 0], buffs: [{}, {}],   // у гостя: остаток секунд ускорения и бустеров (из снимка)
-      abil: [abilStart(), abilStart()],               // и остаток перезарядки способностей
-      styles: [d.style, settings.towers],             // вид башен: хоста — из приглашения, свой — из настроек
+      units: [], countdown: 3, over: null, players, alive: Array(players).fill(true), bots: [],
+      botSeats: Array.isArray(d.bots) ? d.bots.map(Number) : [],   // какие места у ботов (для подписей)
+      time: 0, boostUntil: Array(players).fill(0), buffs: Array.from({ length: players }, () => ({})),   // у гостя: остатки секунд (из снимка)
+      abil: Array.from({ length: players }, () => abilStart()),   // и остаток перезарядки способностей
+      styles,                                         // вид башен каждого игрока; свой — из настроек
     };
     fx = []; selected.clear();
-    matchWallStart = 0;
+    matchWallStart = 0; lastVotes = null;
     net({ t: 'style', v: settings.towers });        // хосту — свой вид башен
     enterGameUI();
     return;
@@ -1624,28 +1807,35 @@ function applySnapshot(s) {
   if (s.over === null && g.over !== null) { g.over = null; hideOverlay(); }
 }
 
+// Гость потерял связь с хостом
 function onDisconnect() {
-  if (!mode || mode === 'solo') return;
+  if (mode !== 'guest') {                         // ещё в комнате, бой не начался
+    if (!game && conn) { setStatus($('joinStatus'), 'Хост закрыл комнату или пропала связь.', 'err'); $('joinBtn').disabled = false; $('hostBtn').disabled = false; conn = null; }
+    return;
+  }
   if ($('overlay').dataset.kind === 'disc') return;
-  showOverlay('Связь потеряна', 'Соперник отключился или пропал интернет.', false, 'disc');
+  showOverlay('Связь потеряна', 'Хост отключился или пропал интернет.', false, 'disc');
 }
 
 function onOpponentLeft() {
   closeLeaveDialog();
-  showOverlay('Соперник вышел', 'Соперник покинул игру и вернулся в меню.', false, 'disc');
+  if (mode !== 'guest') { setStatus($('joinStatus'), 'Хост закрыл комнату.', 'err'); $('joinBtn').disabled = false; $('hostBtn').disabled = false; return; }
+  showOverlay('Хост вышел', 'Хост покинул игру — комната закрыта.', false, 'disc');
 }
 
 // Выход в меню без перезагрузки страницы: сообщаем сопернику, закрываем
 // соединение и сбрасываем состояние игры и лобби.
 function leaveGame() {
-  if (game && game.over === null) trackMatch('left');   // вышел посреди боя
-  const oldPeer = peer, oldConn = conn;
+  if (game && game.over === null && !game.recorded) trackMatch('left');   // вышел посреди боя
+  const oldPeer = peer, oldConn = conn, oldGuests = guests;
   if (mode !== 'solo' && oldConn && oldConn.open) {
     try { oldConn.send({ t: 'leave' }); } catch (e) {}
   }
-  peer = null; conn = null;              // события старого соединения больше не обрабатываются
+  if (hosting) broadcast({ t: 'leave' });  // хост ушёл — комната закрывается для всех
+  peer = null; conn = null; guests = []; hosting = false; votes = new Set();   // события старых соединений больше не обрабатываются
   setTimeout(() => {                     // даём сообщению «leave» уйти
     try { oldConn && oldConn.close(); } catch (e) {}
+    for (const g of oldGuests) try { g.c.close(); } catch (e) {}
     try { oldPeer && oldPeer.destroy(); } catch (e) {}
   }, 300);
 
@@ -1684,7 +1874,9 @@ function openLeaveDialog() {
   if (!game) return;
   $('leaveText').textContent = mode === 'solo'
     ? 'Вы вернётесь в главное меню. Игра на паузе.'
-    : 'Вы вернётесь в главное меню, а соперник увидит, что вы вышли.';
+    : mode === 'host' && guests.length
+      ? 'Вы хост: если выйдете, бой закончится у всех игроков.'
+      : 'Вы вернётесь в главное меню, а вместо вас будет играть бот.';
   $('leaveModal').classList.remove('hidden');
 }
 function closeLeaveDialog() { $('leaveModal').classList.add('hidden'); }
@@ -1704,14 +1896,26 @@ function startMatch() {
     // телефон ещё вертикально: бой ждёт поворота, а после него карта создаётся заново — точно под экран
     if (isPortraitPhone()) game.waitRotate = true;
   } else {
-    H = worldHeightForScreen();                    // форму карты выбирает хост и передаёт гостю
-    game = newGame({ duel: true });
+    // онлайн: люди по порядку (хост — 0, гости — 1, 2…), затем боты на свободные места.
+    // Вдвоём — симметричная карта-дуэль, втроём и вчетвером — обычная случайная карта.
+    const seats = roomSeats();
+    guests.forEach((g, i) => { g.p = i + 1; });
+    H = worldHeightForScreen();                    // форму карты выбирает хост и передаёт гостям
+    const towers = 10 + 2 * (seats.players - 1) + Math.floor(Math.random() * 4) - 1;
+    game = newGame({
+      duel: seats.players === 2, players: seats.players, towers,
+      botSeats: seats.bots, diffs: seats.bots.map(() => room.diff),
+      humanSeats: Array.from({ length: seats.humans }, (_, p) => p),
+    });
+    game.styles = [settings.towers, ...guests.map(g => g.style)];
+    votes = new Set();
   }
   resize();
   fx = []; netEvents = []; selected.clear();
-  if (mode === 'host' && conn) {
-    game.styles = [settings.towers, 'art'];        // вид башен гостя придёт от него отдельным сообщением
-    conn.send({ t: 'init', h: H, style: settings.towers, terrain: game.terrain, nodes: game.nodes.map(n => [n.x, n.y, n.r, n.type === 'base' ? 1 : 0, n.style, n.special]) });
+  if (mode === 'host') {
+    const init = { t: 'init', h: H, players: game.players, bots: game.bots.map(b => b.p), styles: game.styles,
+      terrain: game.terrain, nodes: game.nodes.map(n => [n.x, n.y, n.r, n.type === 'base' ? 1 : 0, n.style, n.special]) };
+    for (const g of guests) if (g.c.open) try { g.c.send({ ...init, me: g.p }); } catch (e) {}
   }
   enterGameUI();
 }
@@ -1801,8 +2005,10 @@ function renderStats() {
 // Никаких имён и данных Telegram. Публичный ключ может только добавлять записи (см. analytics/setup.sql).
 const ANALYTICS_URL = 'https://ooamacfyfdmghqdcaczi.supabase.co/rest/v1/events';
 const ANALYTICS_KEY = 'sb_publishable_5j-d5wQPZrqvG_LVhEAsLA_UAdoKALs';
-const PLATFORM = window.AndroidApp ? 'android' : DESKTOP_APP ? 'windows' : TG_LAUNCH ? 'telegram'
-  : /^(data|file|blob):$/.test(location.protocol) || /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'test' : 'web';
+// (проверки на своём компьютере — localhost, файл, предпросмотр — помечаются 'test' и в цифры не идут)
+const PLATFORM = window.AndroidApp ? 'android' : DESKTOP_APP ? 'windows'
+  : /^(data|file|blob):$/.test(location.protocol) || /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'test'
+  : TG_LAUNCH ? 'telegram' : 'web';
 const DEVICE_ID = (() => {
   const KEY = 'bitva-bashen-device';
   try {
@@ -1844,12 +2050,15 @@ function trackMatch(result, stars) {
 }
 track({ kind: 'open' });
 
+let lastVotes = null;                        // у гостя: последнее состояние голосования за реванш
 function onGameOver(winner) {
-  const win = winner === me;
-  recordResult(win);
+  const win = winner === me, online = mode === 'host' || mode === 'guest';
+  const outEarlier = !!game.recorded;          // в онлайне выбыли раньше — результат уже записан
+  if (!outEarlier) recordResult(win);
   const level = mode === 'solo' && matchCfg.kind === 'level' ? matchCfg.level : 0;
   let text = win
     ? (game.players > 2 ? 'Все соперники повержены.' : 'Главное здание соперника захвачено.')
+    : online && game.players > 2 ? `${outEarlier ? 'Вы выбыли раньше. ' : ''}Победили ${TEAM_NAME[winner]}.`
     : 'Ваше главное здание захвачено.';
   let starsHtml = '', gotStars = null;
   if (level && win) {
@@ -1868,7 +2077,8 @@ function onGameOver(winner) {
       line(kept, kept ? 'Враг не захватил ни одной вашей башни' : `Враг захватил ваших башен: ${game.lost[me]}`) +
       (best > got ? `<div class="best">Лучший результат: ${starStr(best)}</div>` : '');
   }
-  trackMatch(win ? 'win' : 'lose', gotStars);
+  if (!outEarlier) trackMatch(win ? 'win' : 'lose', gotStars);
+  game.recorded = true;
   showOverlay(win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ', text, true, 'over');
   $('ovTime').textContent = `⏱ Время боя: ${fmtTime(matchSeconds())}`;
   $('ovTime').classList.remove('hidden');
@@ -1878,6 +2088,20 @@ function onGameOver(winner) {
   $('ovTitle').style.color = win ? '#5fe39a' : 'var(--red)';
   $('nextBtn').classList.toggle('hidden', !(level && win));
   if (mode === 'solo') $('rematchBtn').textContent = 'Ещё раз';
+  if (mode === 'host') sendVotes();            // всем — кто остался и кто согласен
+  if (mode === 'guest' && lastVotes) renderVotes(lastVotes);
+}
+
+// В онлайне ваше главное здание захватили, а остальные ещё воюют: досмотреть или выйти
+function onSelfOut() {
+  recordResult(false);
+  trackMatch('lose');
+  game.recorded = true;
+  selected.clear();
+  showOverlay('ВЫ ВЫБЫЛИ', 'Ваше главное здание захвачено. Можно досмотреть бой до конца или выйти в меню.', false, 'out');
+  $('ovTitle').style.color = 'var(--red)';
+  $('watchBtn').classList.remove('hidden');
+  tgHaptic('error');
 }
 
 function showOverlay(title, text, canRematch, kind) {
@@ -1887,6 +2111,9 @@ function showOverlay(title, text, canRematch, kind) {
   $('rematchBtn').classList.toggle('hidden', !canRematch);
   $('rematchBtn').disabled = false;
   $('rematchBtn').textContent = 'Реванш';
+  $('menuBtn').textContent = 'В меню';
+  $('watchBtn').classList.add('hidden');
+  $('ovVote').classList.add('hidden');
   $('nextBtn').classList.add('hidden');
   $('ovStars').classList.add('hidden');
   $('ovTime').classList.add('hidden');
@@ -1901,7 +2128,11 @@ function hideOverlay() {
 // =====================================================================
 //  Команды игрока
 // =====================================================================
-function net(msg) { if (conn && conn.open) conn.send(msg); }
+// Гость → хосту; хост → всем гостям (свой вид башен хост рассылает как игрок 0)
+function net(msg) {
+  if (hosting) { broadcast(msg.t === 'style' ? { ...msg, p: 0 } : msg); return; }
+  if (conn && conn.open) conn.send(msg);
+}
 
 const hasRouteTo = (n, to) => n.route === to || n.route2 === to;
 
@@ -2034,7 +2265,8 @@ function toast(text, ms = 1600) {
 //  Ввод
 // =====================================================================
 let dpr = 1, scale = 1, offX = 0, offY = 0;
-const flip = () => mode === 'guest';           // гость видит свою базу слева
+// гость видит свою базу слева: если его главное здание справа, карта отражается
+const flip = () => mode === 'guest' && !!game && !!game.nodes[me] && game.nodes[me].x > W / 2;
 const X = x => (flip() ? W - x : x);
 
 // Поле занимает весь экран под верхней строкой; панель улучшений всплывает поверх низа поля.
@@ -3386,7 +3618,8 @@ function updateHud() {
   for (const u of game.units) tot[u.owner]++;
   const many = n > 2;
   const chip = p => {
-    const label = p === me ? 'Вы' : many ? '' : mode === 'solo' ? 'Бот' : 'Соперник';
+    const bot = mode === 'solo' || (game.botSeats || []).includes(p);
+    const label = p === me ? 'Вы' : many ? (bot && mode !== 'solo' ? '🤖' : '') : bot ? 'Бот' : 'Соперник';
     return `<div class="chip${game.alive[p] ? '' : ' out'}"><span class="dot" style="background:${COL[p].main}"></span>` +
       (label ? `<b>${label}</b> ` : '') +
       (!game.alive[p] ? 'выбыли' : many ? `⚔${Math.floor(tot[p])} 🏰${cnt[p]}` : `⚔ ${Math.floor(tot[p])} · 🏰 ${cnt[p]}`) + '</div>';
@@ -3514,12 +3747,12 @@ function hostTick() {
   while (dt > 0) {
     const s = Math.min(dt, 1 / 30);
     step(game, s);
-    if (mode === 'solo') for (const b of game.bots) botStep(game, s, b);
+    for (const b of game.bots) botStep(game, s, b);   // боты — и в одиночной игре, и в онлайне у хоста
     dt -= s;
   }
-  if (mode === 'host' && conn && conn.open) {
+  if (mode === 'host' && guests.length) {
     sendAcc += (now - (hostTick.prev || now)) / 1000;
-    if (sendAcc >= 0.05) { sendAcc = 0; conn.send(snapshot(game)); }
+    if (sendAcc >= 0.05) { sendAcc = 0; broadcast(snapshot(game)); }   // один снимок на всех гостей
   }
   hostTick.prev = now;
 }
@@ -3618,19 +3851,24 @@ window.androidBack = () => {
     else openLeaveDialog();
     return true;
   }
+  if (hosting || conn) { leaveGame(); return true; }   // ждём в комнате — «Назад» закрывает комнату
   return false;
 };
 $('leaveYes').onclick = leaveGame;
 $('leaveNo').onclick = closeLeaveDialog;
+// Реванш: в одиночной игре — сразу; в онлайне — голос «за», бой начнётся, когда согласятся все
 $('rematchBtn').onclick = () => {
   if (mode === 'guest') {
     conn?.open && conn.send({ t: 'rematch' });
     $('rematchBtn').disabled = true;
-    $('rematchBtn').textContent = 'Ждём хоста…';
+    $('rematchBtn').textContent = 'Ждём остальных…';
+  } else if (mode === 'host') {
+    votes.add(0); sendVotes(); checkRematch();
   } else {
     startMatch();
   }
 };
+$('watchBtn').onclick = hideOverlay;         // выбыли — досматриваем бой
 // =====================================================================
 //  Telegram Mini App. Telegram передаёт параметры запуска в адресе (#tgWebAppData=…),
 //  поэтому SDK подгружается только внутри Telegram — в браузере, Android и Windows ничего не меняется.
@@ -3738,7 +3976,7 @@ function inviteCode() {
 // «Назад» Telegram видна в игре и в открытых окнах; в меню Telegram показывает свою кнопку закрытия
 function syncTgBack() {
   if (!tg) return;
-  const want = !!game || !$('helpModal').classList.contains('hidden') || !$('settingsModal').classList.contains('hidden');
+  const want = !!game || hosting || !!conn || !$('helpModal').classList.contains('hidden') || !$('settingsModal').classList.contains('hidden');
   if (want === tgBackShown) return;
   tgBackShown = want;
   if (want) tg.BackButton.show(); else tg.BackButton.hide();
