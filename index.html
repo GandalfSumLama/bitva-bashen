@@ -1548,6 +1548,7 @@ function onHostData(d) {
   else if (d.t === 'unroute' && Array.isArray(d.ids)) for (const id of d.ids) clearRoute(game, 1, +id, d.to == null ? undefined : +d.to);
   else if (d.t === 'up') upgrade(game, 1, +d.id, d.b);
   else if (d.t === 'abil') useAbility(game, 1, String(d.k), +d.x, +d.y, d.id == null ? -1 : +d.id);
+  else if (d.t === 'style' && TOWER_STYLES.includes(d.v)) game.styles[1] = d.v;   // вид башен гостя
   else if (d.t === 'rematch' && game.over !== null) startMatch();
   else if (d.t === 'leave') onOpponentLeft();
 }
@@ -1559,6 +1560,7 @@ function onGuestData(d) {
     return;
   }
   if (d.t === 'leave') { onOpponentLeft(); return; }
+  if (d.t === 'style') { if (game && game.styles && TOWER_STYLES.includes(d.v)) game.styles[0] = d.v; return; }   // вид башен хоста
   if (d.t === 'init') {
     mode = 'guest'; me = 1;
     H = +d.h || 720; resize();                     // карта той же формы, что у хоста
@@ -1568,9 +1570,11 @@ function onGuestData(d) {
       units: [], countdown: 3, over: null, players: 2, alive: [true, true], bots: [],
       time: 0, boostUntil: [0, 0], buffs: [{}, {}],   // у гостя: остаток секунд ускорения и бустеров (из снимка)
       abil: [abilStart(), abilStart()],               // и остаток перезарядки способностей
+      styles: [d.style, settings.towers],             // вид башен: хоста — из приглашения, свой — из настроек
     };
     fx = []; selected.clear();
     matchWallStart = 0;
+    net({ t: 'style', v: settings.towers });        // хосту — свой вид башен
     enterGameUI();
     return;
   }
@@ -1706,7 +1710,8 @@ function startMatch() {
   resize();
   fx = []; netEvents = []; selected.clear();
   if (mode === 'host' && conn) {
-    conn.send({ t: 'init', h: H, terrain: game.terrain, nodes: game.nodes.map(n => [n.x, n.y, n.r, n.type === 'base' ? 1 : 0, n.style, n.special]) });
+    game.styles = [settings.towers, 'art'];        // вид башен гостя придёт от него отдельным сообщением
+    conn.send({ t: 'init', h: H, style: settings.towers, terrain: game.terrain, nodes: game.nodes.map(n => [n.x, n.y, n.r, n.type === 'base' ? 1 : 0, n.style, n.special]) });
   }
   enterGameUI();
 }
@@ -2865,10 +2870,21 @@ function towerSpriteName(n) {
   return (n.def > 0 ? 'tower-cannon-' : 'tower-') + TEAM_TOWER[n.owner];
 }
 
+// Вид башни. В онлайне здания соперника рисуются так, как выбрал он сам (game.styles[игрок]),
+// свои и серые — по вашим настройкам.
+const TOWER_STYLES = ['art', 'neon', 'classic'];
+function towerStyle(n) {
+  if (game && game.styles && n.owner >= 0 && n.owner !== me && (mode === 'host' || mode === 'guest')) {
+    const s = game.styles[n.owner];
+    if (TOWER_STYLES.includes(s)) return s;
+  }
+  return settings.towers;
+}
 // Где рисуется здание (в координатах карты, x не отражён): низ картинки чуть ниже центра узла
 function towerBox(n) {
-  if (settings.towers === 'classic') return null;    // в настройках выбран классический вид — кружки
-  if (settings.towers === 'neon') return neonBox(n);
+  const style = towerStyle(n);
+  if (style === 'classic') return null;              // классический вид — кружки
+  if (style === 'neon') return neonBox(n);
   const name = towerSpriteName(n), img = SPR_TOWER[name], meta = TOWER_META[name];
   if (!img || !meta) return null;
   const big = scale < 0.7 ? 1.3 : 1;          // на телефоне места хватает — рисуем крупнее
@@ -3751,7 +3767,10 @@ $('settingsModal').addEventListener('click', e => { if (e.target === $('settings
 function bindSetting(segId, key) {
   const seg = $(segId);
   const sync = () => { for (const o of seg.querySelectorAll('button')) o.classList.toggle('on', o.dataset.v === settings[key]); };
-  for (const b of seg.querySelectorAll('button')) b.onclick = () => { settings[key] = b.dataset.v; saveSettings(); sync(); };
+  for (const b of seg.querySelectorAll('button')) b.onclick = () => {
+    settings[key] = b.dataset.v; saveSettings(); sync();
+    if (key === 'towers' && (mode === 'host' || mode === 'guest')) net({ t: 'style', v: settings.towers });   // сопернику — ваш новый вид
+  };
   sync();
 }
 bindSetting('towerStyleSeg', 'towers');
