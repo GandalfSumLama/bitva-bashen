@@ -510,11 +510,11 @@ const TEAM_NAME = ['Синие', 'Красные', 'Зелёные', 'Фиоле
 //   abil — пользуется ли бот суперспособностями
 const DIFFS = [
   { name: 'Лёгкий',  react: [3.5, 4.0], actions: 1, margin: 2.2, defend: 0.25, upgrade: 0.3, eco: 40,
-    humanBonus: -20, botPenalty: 0, prodMul: 0.8, startBonus: -5, firstMove: 12, abil: false },
-  { name: 'Средний', react: [1.3, 2.0], actions: 2, margin: 1.15, defend: 1, upgrade: 1, eco: 25,
-    humanBonus: 4, botPenalty: 0, prodMul: 1, startBonus: 0, firstMove: 1.5, abil: true },
-  { name: 'Сложный', react: [0.5, 1.0], actions: 3, margin: 1.05, defend: 1, upgrade: 1, eco: 20,
-    humanBonus: 12, botPenalty: -5, prodMul: 1.1, startBonus: 5, firstMove: 1, abil: true },
+    humanBonus: -20, botPenalty: 0, prodMul: 0.8, startBonus: -5, firstMove: 10, abil: false },
+  { name: 'Средний', react: [1.3, 2.0], actions: 2, margin: 1.15, defend: 1, upgrade: 0.5, eco: 25,
+    humanBonus: 4, botPenalty: 0, prodMul: 1, startBonus: 0, firstMove: 3, abil: false },
+  { name: 'Сложный', react: [0.5, 1.0], actions: 3, margin: 1.05, defend: 1, upgrade: 0.7, eco: 20,
+    humanBonus: 12, botPenalty: -5, prodMul: 1.1, startBonus: 5, firstMove: 2, abil: true },
   // хардкор: всё на максимум, боты между собой не воюют, главное здание сразу с фортом
   { name: 'Хардкор', react: [0.2, 0.35], actions: 6, margin: 1.0, defend: 1, upgrade: 1, eco: 5,
     humanBonus: 45, botPenalty: -60, prodMul: 1.7, startBonus: 30, firstMove: 0.3, baseDef: 1, abil: true },
@@ -560,9 +560,9 @@ const BOOSTER_CHANCE = 0.33, SPEED_MUL = 1.7, REINF_UNITS = 25;
 // Суперспособности: оплачиваются войсками из главного здания, у каждой своя перезарядка (с).
 // aim — на что нацеливается: 'point' — любое место карты, 'enemy' — вражеское здание, 'node' — любая башня.
 const ABILITIES = [
-  { key: 'art',    icon: '💥', name: 'Артудар',   cost: 25, cd: 40, radius: 80, towerDmg: 10, color: '#ff8a3d', aim: 'point' },
-  { key: 'freeze', icon: '❄️', name: 'Заморозка', cost: 20, cd: 35, secs: 6, color: '#6ee7ff', aim: 'enemy' },
-  { key: 'drop',   icon: '🪂', name: 'Десант',    cost: 20, cd: 45, units: 15, color: '#5fe39a', aim: 'node' },
+  { key: 'art',    icon: '💥', name: 'Артудар',   cost: 25, cd: 100, radius: 80, towerDmg: 10, color: '#ff8a3d', aim: 'point' },
+  { key: 'freeze', icon: '❄️', name: 'Заморозка', cost: 20, cd: 75, secs: 6, color: '#6ee7ff', aim: 'enemy' },
+  { key: 'drop',   icon: '🪂', name: 'Десант',    cost: 25, cd: 120, units: 20, color: '#5fe39a', aim: 'node' },
 ];
 const ABIL_FIRST = 20;         // через сколько секунд после начала боя способности становятся доступны
 function abilText(a) {
@@ -621,7 +621,7 @@ const RULES_HTML = `
       <br>${IS_TOUCH ? 'Нажмите кнопку способности, затем коснитесь цели на карте. Повторное нажатие на кнопку отменяет выбор.'
         : 'Нажмите кнопку способности (или цифру), затем кликните по цели на карте. <kbd>Esc</kbd> или правый клик отменяет выбор.'}
       Цифра на кнопке — сколько секунд осталось до перезарядки, бледная кнопка — не хватает войск в главном здании.
-      Боты начиная со среднего тоже умеют пользоваться способностями.</li>
+      Способностями пользуются и боты: ${DIFFS.filter(d => d.abil).map(d => d.name.toLowerCase()).join(' и ')}.</li>
     <li><b>Звёзды за уровни:</b> ★ — победа, ★ — победа быстрее контрольного времени (оно указано на карточке уровня, а в бою — таймер вверху),
       ★ — враг не захватил ни одной вашей башни. Звёзды можно добирать, переигрывая пройденные уровни: засчитывается лучший результат.</li>
     ${RULES_CONTROLS}
