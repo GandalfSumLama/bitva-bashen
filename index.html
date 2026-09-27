@@ -110,6 +110,11 @@
   .lvl-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
   .stars-total { font-size: 14px; color: var(--gold); font-weight: 700; }
   .lvl-goal { font-size: 12px !important; }
+  .ov-time {
+    display: inline-block; margin: -8px 0 18px; padding: 5px 14px; border-radius: 999px;
+    background: #0e1426; border: 1px solid var(--line); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums;
+  }
+  body.compact .ov-time { margin: -4px 0 12px; font-size: 14px; }
   .ov-stars { margin: -8px 0 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; text-align: left; align-items: center; }
   .ov-stars .big { font-size: 40px; line-height: 1.1; color: var(--gold); letter-spacing: 4px; margin-bottom: 4px; }
   .ov-stars .ok { color: var(--text); }
@@ -423,6 +428,7 @@
   <div class="ov-box">
     <h2 id="ovTitle"></h2>
     <p id="ovText"></p>
+    <div id="ovTime" class="ov-time hidden"></div>
     <div id="ovStars" class="ov-stars hidden"></div>
     <div class="row">
       <button class="primary hidden" id="nextBtn">Следующий уровень</button>
@@ -1811,9 +1817,14 @@ function track(ev) {
 }
 let matchWallStart = 0;                      // когда закончился отсчёт (для гостя: у него нет g.time)
 // Одна запись на партию: при конце боя (win/lose) или при выходе посреди боя (left)
+// Сколько секунд идёт бой (без отсчёта «3-2-1»)
+function matchSeconds() {
+  if (!game) return 0;
+  return mode === 'guest' ? (matchWallStart ? (performance.now() - matchWallStart) / 1000 : 0) : game.time;
+}
 function trackMatch(result, stars) {
   if (!game || game.tracked || mode === 'sim') return;
-  const secs = mode === 'guest' ? (matchWallStart ? (performance.now() - matchWallStart) / 1000 : 0) : game.time;
+  const secs = matchSeconds();
   if (result === 'left' && secs < 5) return;           // зашёл и сразу вышел — не партия
   game.tracked = true;
   const solo = mode === 'solo', lvl = solo && matchCfg.kind === 'level' ? matchCfg.level : null;
@@ -1851,6 +1862,8 @@ function onGameOver(winner) {
   }
   trackMatch(win ? 'win' : 'lose', gotStars);
   showOverlay(win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ', text, true, 'over');
+  $('ovTime').textContent = `⏱ Время боя: ${fmtTime(matchSeconds())}`;
+  $('ovTime').classList.remove('hidden');
   $('ovStars').innerHTML = starsHtml;
   $('ovStars').classList.toggle('hidden', !starsHtml);
   tgHaptic(win ? 'success' : 'error');
@@ -1868,6 +1881,7 @@ function showOverlay(title, text, canRematch, kind) {
   $('rematchBtn').textContent = 'Реванш';
   $('nextBtn').classList.add('hidden');
   $('ovStars').classList.add('hidden');
+  $('ovTime').classList.add('hidden');
   $('overlay').dataset.kind = kind;
   $('overlay').classList.remove('hidden');
 }
