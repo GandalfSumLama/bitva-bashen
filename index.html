@@ -135,18 +135,7 @@
   .status.err { color: var(--red); }
   .status.ok { color: #5fe39a; }
   #diffSeg button { font-size: 12px; padding: 6px 1px; }   /* четыре сложности должны влезать целиком */
-  .online-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-  .online-col > .card { flex: none; }
-  body.no-net .online-col { grid-column: 1 / -1; order: 3; }   /* без онлайна статистика — строкой под карточками */
-  /* широкий экран: три карточки в ряд, статистика — полосой во всю ширину под ними (без пустоты) */
-  @media (min-width: 641px) {
-    .online-col { display: contents; }
-    #statsCard { grid-column: 1 / -1; order: 5; }
-  }
-  .stats-card { gap: 10px; }
-  .stats-card h2 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .stats-note { font-size: 12px; font-weight: 400; color: var(--muted); }
-  .stat-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+  /* личная статистика: онлайн — внизу карточки «Онлайн», с ботами — внизу карточки «Уровни» */
   .stat-row { background: #0e1426; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
   .stat-row .lbl { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
   .stat-row .nums { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; font-size: 14px; }
@@ -337,7 +326,6 @@
       <p id="subtitle">Стратегия: вдвоём через интернет или против ботов</p>
     </div>
     <div class="cards" id="cards">
-      <div class="online-col">
       <div class="card net-card" id="onlineCard">
         <h2>Онлайн</h2>
         <p>Сыграйте с другом: создайте комнату или введите его код.</p>
@@ -351,12 +339,7 @@
           <button class="primary" id="joinBtn">Войти</button>
         </div>
         <div class="status" id="joinStatus"></div>
-      </div>
-      <!-- личная статистика — под «Онлайн» -->
-      <div class="card stats-card" id="statsCard">
-        <h2>Статистика <span class="stats-note">видна только вам</span></h2>
-        <div class="stat-rows" id="statRows"></div>
-      </div>
+        <div class="stat-row" id="statOnline"></div>
       </div>
       <div class="card">
         <h2>Тренировка</h2>
@@ -382,6 +365,7 @@
         <div id="lvlDone" class="lvl-done hidden">✓ Пройден</div>
         <p id="lvlInfo"></p>
         <button id="levelBtn" class="primary grow-top">Играть уровень</button>
+        <div class="stat-row" id="statBots"></div>
       </div>
     </div>
     <div class="rules" id="rulesText"></div>
@@ -1418,7 +1402,8 @@ function renderStats() {
       <span><span class="l">${s.l}</span> ${plural(s.l, 'поражение', 'поражения', 'поражений')}</span>
       <span class="pct">${total ? Math.round(s.w / total * 100) + '% побед' : 'ещё не играли'}</span></div></div>`;
   };
-  $('statRows').innerHTML = (NETWORK_ENABLED ? row('🌐 Онлайн', stats.online) : '') + row('🤖 С ботами', stats.bots);
+  $('statOnline').innerHTML = row('🌐 Ваша статистика онлайн', stats.online);
+  $('statBots').innerHTML = row('🤖 Ваша статистика с ботами', stats.bots);
 }
 
 function onGameOver(winner) {
