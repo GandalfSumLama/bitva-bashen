@@ -107,6 +107,47 @@
     background: #5fe39a22; border: 1px solid #5fe39a88; color: #5fe39a;
     font-size: 14px; font-weight: 700;
   }
+  .lvl-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .stars-total { font-size: 14px; color: var(--gold); font-weight: 700; }
+  .lvl-goal { font-size: 12px !important; }
+  .ov-stars { margin: -8px 0 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; text-align: left; align-items: center; }
+  .ov-stars .big { font-size: 40px; line-height: 1.1; color: var(--gold); letter-spacing: 4px; margin-bottom: 4px; }
+  .ov-stars .ok { color: var(--text); }
+  .ov-stars .ok::first-letter { color: var(--gold); }
+  .ov-stars .no { color: var(--muted); }
+  .ov-stars .best { color: var(--gold); font-size: 13px; margin-top: 4px; }
+  body.compact .ov-stars { margin: -4px 0 12px; font-size: 13px; }
+  body.compact .ov-stars .big { font-size: 30px; }
+  /* ---------- Суперспособности: кнопки внизу по центру ---------- */
+  #abilBar {
+    position: fixed; left: 50%; bottom: calc(10px + var(--safe-b)); transform: translateX(-50%); z-index: 5;
+    display: flex; gap: 14px;
+  }
+  .ab-btn {
+    position: relative; width: 46px; height: 46px; padding: 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1;
+    border: 2px solid var(--ab); background: rgba(17, 23, 40, 0.9); box-shadow: 0 4px 14px #0008;
+  }
+  .ab-btn::before {                       /* тёмный сектор — сколько осталось до перезарядки */
+    content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    background: conic-gradient(#0b0f19d9 calc(var(--p, 0) * 1turn), transparent 0);
+  }
+  .ab-btn .cdv {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font: 800 16px Rubik, sans-serif; color: #fff; text-shadow: 0 1px 3px #000;
+  }
+  .ab-btn .cdv:empty { display: none; }
+  .ab-btn .cost {
+    position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+    font: 800 10.5px/15px Rubik, sans-serif; padding: 0 5px; border-radius: 8px; white-space: nowrap;
+    background: #0b0f19; border: 1px solid var(--line); color: var(--text);
+  }
+  .ab-btn kbd { position: absolute; top: -7px; left: -7px; min-width: 16px; padding: 0 3px; font-size: 10px; line-height: 15px; }
+  .ab-btn.off { opacity: .5; }
+  .ab-btn.aim { box-shadow: 0 0 0 3px var(--ab), 0 0 18px var(--ab); }
+  body.compact #abilBar { bottom: calc(8px + var(--safe-b)); gap: 12px; }
+  body.compact .ab-btn { width: 38px; height: 38px; font-size: 18px; }
+  body.compact .ab-btn .cdv { font-size: 14px; }
   .chip.out { opacity: .45; text-decoration: line-through; }
   .buffs { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; justify-content: center; }
   .buffs:empty { visibility: hidden; }
@@ -314,6 +355,9 @@
   <button id="unrouteBtn" class="tb-btn route" aria-label="Убрать путь" title="Убрать путь (X)">✕</button>
 </div>
 
+<!-- Суперспособности (кнопки создаются из ABILITIES) -->
+<div id="abilBar" class="hidden"></div>
+
 <div id="toast" class="hidden"></div>
 <div id="buffTip" class="hidden"></div>
 
@@ -356,7 +400,7 @@
         <button id="soloBtn" class="grow-top">Играть с ботами</button>
       </div>
       <div class="card">
-        <h2>Уровни</h2>
+        <h2 class="lvl-h">Уровни <span id="starsTotal" class="stars-total hidden"></span></h2>
         <div class="lvl-nav">
           <button id="lvlPrev" aria-label="Предыдущий уровень">‹</button>
           <b id="lvlTitle">Уровень 1</b>
@@ -364,6 +408,7 @@
         </div>
         <div id="lvlDone" class="lvl-done hidden">✓ Пройден</div>
         <p id="lvlInfo"></p>
+        <p id="lvlGoal" class="lvl-goal"></p>
         <button id="levelBtn" class="primary grow-top">Играть уровень</button>
         <div class="stat-row" id="statBots"></div>
       </div>
@@ -378,6 +423,7 @@
   <div class="ov-box">
     <h2 id="ovTitle"></h2>
     <p id="ovText"></p>
+    <div id="ovStars" class="ov-stars hidden"></div>
     <div class="row">
       <button class="primary hidden" id="nextBtn">Следующий уровень</button>
       <button class="primary" id="rematchBtn">Реванш</button>
@@ -441,7 +487,7 @@ const NETWORK_ENABLED = TG_LAUNCH;
 // Ссылка на игру в Telegram: приглашение в комнату — ?startapp=КОД (друг сразу попадает в комнату)
 // Главное Mini App бота (галерея Pleasure Union): t.me/бот?startapp=… — отдельного «/play» у бота нет
 const TG_APP_LINK = 'https://t.me/pleasure_union_bot';
-const PEER_PREFIX = 'bitva-bashen-v1-';
+const PEER_PREFIX = 'bitva-bashen-v2-';   // v2 — со способностями (старая версия с новой не соединится)
 const CODE_LEN = 4;      // код комнаты — 4 цифры, его легко продиктовать и ввести
 
 const COL = {
@@ -460,17 +506,18 @@ const TEAM_NAME = ['Синие', 'Красные', 'Зелёные', 'Фиоле
 //   defend — шанс заметить угрозу, upgrade — шанс заняться улучшениями, eco — сколько войск
 //   бот оставляет сверх цены улучшения, humanBonus — насколько охотнее бьёт игрока (минус — избегает),
 //   botPenalty — насколько неохотно бьёт других ботов (сложные вместе давят на игрока),
-//   prodMul — множитель производства, startBonus — войск на старте, firstMove — пауза перед первым ходом (с)
+//   prodMul — множитель производства, startBonus — войск на старте, firstMove — пауза перед первым ходом (с),
+//   abil — пользуется ли бот суперспособностями
 const DIFFS = [
   { name: 'Лёгкий',  react: [3.5, 4.0], actions: 1, margin: 2.2, defend: 0.25, upgrade: 0.3, eco: 40,
-    humanBonus: -20, botPenalty: 0, prodMul: 0.8, startBonus: -5, firstMove: 12 },
+    humanBonus: -20, botPenalty: 0, prodMul: 0.8, startBonus: -5, firstMove: 12, abil: false },
   { name: 'Средний', react: [1.3, 2.0], actions: 2, margin: 1.15, defend: 1, upgrade: 1, eco: 25,
-    humanBonus: 4, botPenalty: 0, prodMul: 1, startBonus: 0, firstMove: 1.5 },
+    humanBonus: 4, botPenalty: 0, prodMul: 1, startBonus: 0, firstMove: 1.5, abil: true },
   { name: 'Сложный', react: [0.5, 1.0], actions: 3, margin: 1.05, defend: 1, upgrade: 1, eco: 20,
-    humanBonus: 12, botPenalty: -5, prodMul: 1.1, startBonus: 5, firstMove: 1 },
+    humanBonus: 12, botPenalty: -5, prodMul: 1.1, startBonus: 5, firstMove: 1, abil: true },
   // хардкор: всё на максимум, боты между собой не воюют, главное здание сразу с фортом
   { name: 'Хардкор', react: [0.2, 0.35], actions: 6, margin: 1.0, defend: 1, upgrade: 1, eco: 5,
-    humanBonus: 45, botPenalty: -60, prodMul: 1.7, startBonus: 30, firstMove: 0.3, baseDef: 1 },
+    humanBonus: 45, botPenalty: -60, prodMul: 1.7, startBonus: 30, firstMove: 0.3, baseDef: 1, abil: true },
 ];
 
 // Уровни: [соперников, сложность, башен]. После десятого уровня — три сложных бота,
@@ -510,6 +557,26 @@ const BOOSTERS = [
 ];
 const BOOSTER_CHANCE = 0.33, SPEED_MUL = 1.7, REINF_UNITS = 25;
 
+// Суперспособности: оплачиваются войсками из главного здания, у каждой своя перезарядка (с).
+// aim — на что нацеливается: 'point' — любое место карты, 'enemy' — вражеское здание, 'node' — любая башня.
+const ABILITIES = [
+  { key: 'art',    icon: '💥', name: 'Артудар',   cost: 25, cd: 40, radius: 80, towerDmg: 10, color: '#ff8a3d', aim: 'point' },
+  { key: 'freeze', icon: '❄️', name: 'Заморозка', cost: 20, cd: 35, secs: 6, color: '#6ee7ff', aim: 'enemy' },
+  { key: 'drop',   icon: '🪂', name: 'Десант',    cost: 20, cd: 45, units: 15, color: '#5fe39a', aim: 'node' },
+];
+const ABIL_FIRST = 20;         // через сколько секунд после начала боя способности становятся доступны
+function abilText(a) {
+  if (a.key === 'art') return `уничтожает всех вражеских бойцов в круге и выбивает по ${a.towerDmg} защитников из чужих зданий в нём`;
+  if (a.key === 'freeze') return `вражеское здание ${a.secs} с не производит войска, не отправляет их и не стреляет`;
+  return `${a.units} бойцов высаживаются прямо у выбранной башни: у чужой — атакуют её, у своей — усиливают`;
+}
+
+// Звёзды за уровень: ★ — победа, ★ — победа быстрее контрольного времени, ★ — ни одна ваша башня не захвачена врагом.
+// Контрольное время = основа + за каждого соперника + за каждую башню (с).
+const STAR_TIME_BASE = 60, STAR_TIME_PER_ENEMY = 60, STAR_TIME_PER_TOWER = 5;
+const starTime = lp => STAR_TIME_BASE + STAR_TIME_PER_ENEMY * lp.enemies + STAR_TIME_PER_TOWER * lp.towers;
+const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
 // Правила: на телефоне (и в приложении) — управление пальцем, на компьютере — мышью и клавишами
 const IS_TOUCH = !!window.AndroidApp || matchMedia('(pointer: coarse)').matches;
 // Запущено внутри Windows-приложения (WebView2): есть F11 и кнопка выхода из игры
@@ -548,6 +615,15 @@ const RULES_HTML = `
     <li>Главное здание само производит войска. Серые башни нейтральные: в них сидит гарнизон, который нужно перебить.</li>
     <li><b>Бустеры</b> спрятаны в некоторых серых башнях, над ними золотой <b>?</b>. Бустер получает тот, кто первым захватит башню:
       ${BOOSTERS.map(b => `<br>${b.icon} <b>${b.name}</b>${b.secs ? ` (${b.secs} с)` : ''}: ${b.text}.`).join('')}</li>
+    <li><b>Суперспособности</b> — три кнопки внизу экрана. Их оплачивают войсками из <b>главного здания</b>,
+      после применения способность перезаряжается. Первый раз их можно применить через ${ABIL_FIRST} с после начала боя.
+      ${ABILITIES.map((a, i) => `<br>${a.icon} <b>${a.name}</b>${IS_TOUCH ? '' : ` (<kbd>${i + 1}</kbd>)`}: ${abilText(a)}. Цена ${a.cost} войск, перезарядка ${a.cd} с.`).join('')}
+      <br>${IS_TOUCH ? 'Нажмите кнопку способности, затем коснитесь цели на карте. Повторное нажатие на кнопку отменяет выбор.'
+        : 'Нажмите кнопку способности (или цифру), затем кликните по цели на карте. <kbd>Esc</kbd> или правый клик отменяет выбор.'}
+      Цифра на кнопке — сколько секунд осталось до перезарядки, бледная кнопка — не хватает войск в главном здании.
+      Боты начиная со среднего тоже умеют пользоваться способностями.</li>
+    <li><b>Звёзды за уровни:</b> ★ — победа, ★ — победа быстрее контрольного времени (оно указано на карточке уровня, а в бою — таймер вверху),
+      ★ — враг не захватил ни одной вашей башни. Звёзды можно добирать, переигрывая пройденные уровни: засчитывается лучший результат.</li>
     ${RULES_CONTROLS}
     <li><b>Главное здание</b> может вести сразу <b>два пути</b>, по каждому идёт полный поток войск. Третий путь заменяет самый старый.</li>
     <li><b>Настройки</b> (шестерёнка): вид башен — реализм, неон или классика (как в первой версии игры), вид бойцов — солдатики или точки.</li>
@@ -605,9 +681,12 @@ function updateBoosts(g) {
 }
 function effRate(g, n) {
   if (n.owner < 0) return 0;
+  if (frozen(g, n)) return 0;                                 // «Заморозка»
   return prodRate(n) * (baseBoosted(g, n) ? BOOST_MUL : 1) * (g.prodMul ? g.prodMul[n.owner] : 1)
     * (buff(g, n.owner, 'prod') ? 2 : 1);
 }
+// Заморожено ли здание (у гостя g.time = 0, а в n.frozen — остаток секунд из снимка)
+const frozen = (g, n) => n.frozen > g.time;
 
 // Активен ли бустер у игрока (у гостя в сетевой игре g.time = 0, а в buffs — остаток секунд)
 function buff(g, p, key) { return p >= 0 && !!g.buffs && !!g.buffs[p] && g.buffs[p][key] > g.time; }
@@ -651,6 +730,7 @@ function makeNode(nodes, x, y, type, owner, units) {
     id: nodes.length, x: Math.round(x), y: Math.round(y), r: type === 'base' ? 34 : 24,
     type, owner, units, prod: 0, def: 0, cd: 0, route: -1, flowCd: 0, booster: -1,
     route2: -1, flowCd2: 0,                 // второй путь — только у главного здания
+    frozen: 0,                              // до какого g.time заморожено («Заморозка»)
     style: Math.floor(Math.random() * 6),   // какая из серых башен рисуется, пока башня нейтральная
   });
 }
@@ -739,8 +819,11 @@ function newGame(cfg) {
     nodes, units: [], nextId: 1, countdown: 3, over: null, players, alive: Array(players).fill(true), bots,
     time: 0, boostUntil: Array(players).fill(0), towerCnt: Array(players).fill(0), prodMul,
     buffs: Array.from({ length: players }, () => ({})),   // до какого g.time действует каждый бустер
+    abil: Array.from({ length: players }, () => abilStart()),   // с какого g.time готова каждая способность
+    lost: Array(players).fill(0),           // сколько башен у игрока захватили враги (для звезды)
   };
 }
+function abilStart() { const o = {}; for (const a of ABILITIES) o[a.key] = ABIL_FIRST; return o; }
 
 // Событие для эффектов: [0, …] выстрел, [1, …] захват, [2, p] игрок выбыл, [3, x, y, p, i] бустер
 function emit(ev) {
@@ -806,6 +889,65 @@ function upgrade(g, player, id, branch) {
   return true;
 }
 
+// Проверка, можно ли применить способность: '' — можно, иначе причина (для подсказки игроку)
+function abilBlock(g, p, a) {
+  if (!g.alive[p] || g.over !== null) return 'Сейчас нельзя';
+  if (g.countdown > 0) return 'Бой ещё не начался';
+  const left = g.abil[p][a.key] - g.time;
+  if (left > 0) return `${a.icon} ${a.name}: перезарядка ещё ${Math.ceil(left)} с`;
+  if (g.nodes[p].units < a.cost) return `${a.icon} ${a.name}: нужно ${a.cost} войск в главном здании`;
+  return '';
+}
+function abilTargetOk(g, p, a, t) {
+  if (a.aim === 'enemy') return !!t && t.owner >= 0 && t.owner !== p;
+  if (a.aim === 'node') return !!t;
+  return true;
+}
+
+// Применить способность key игрока p: в точку (x, y) карты или по зданию id. Возвращает '' или причину отказа.
+function useAbility(g, p, key, x, y, id) {
+  const idx = ABILITIES.findIndex(v => v.key === key), a = ABILITIES[idx];
+  if (!a) return 'Нет такой способности';
+  const block = abilBlock(g, p, a);
+  if (block) return block;
+  const t = id >= 0 ? g.nodes[id] : null;
+  if (!abilTargetOk(g, p, a, t)) return a.aim === 'enemy' ? 'Выберите вражеское здание' : 'Выберите башню';
+  if (t) { x = t.x; y = t.y; }
+  x = Math.max(0, Math.min(W, +x || 0)); y = Math.max(0, Math.min(H, +y || 0));
+  const base = g.nodes[p];
+  base.units -= a.cost;
+  g.abil[p][key] = g.time + a.cd;
+  if (key === 'art') {
+    const R2 = a.radius * a.radius;
+    for (const u of g.units) if (u.owner !== p && (u.x - x) ** 2 + (u.y - y) ** 2 <= R2) u.dead = true;
+    g.units = g.units.filter(u => !u.dead);
+    for (const n of g.nodes) {
+      if (n.owner !== p && Math.hypot(n.x - x, n.y - y) <= a.radius + n.r * 0.5) n.units = Math.max(0, n.units - a.towerDmg);
+    }
+  } else if (key === 'freeze') {
+    t.frozen = g.time + a.secs;
+  } else if (key === 'drop') {
+    // бойцы появляются дугой со стороны своего главного здания и через мгновение бегут к цели
+    const ang0 = t === base ? -Math.PI / 2 : Math.atan2(base.y - t.y, base.x - t.x);
+    for (let i = 0; i < a.units; i++) {
+      const ang = ang0 + (a.units > 1 ? i / (a.units - 1) - 0.5 : 0) * 1.8, d = t.r + 34 + (i % 3) * 10;
+      g.units.push({
+        id: g.nextId++, owner: p, target: t.id, delay: 0.35 + i * 0.03,
+        x: Math.max(8, Math.min(W - 8, t.x + Math.cos(ang) * d)), y: Math.max(8, Math.min(H - 8, t.y + Math.sin(ang) * d)),
+      });
+    }
+  }
+  emit([4, Math.round(x), Math.round(y), p, idx]);
+  onAbility(p, idx);
+  return '';
+}
+
+function onAbility(p, idx) {
+  const a = ABILITIES[idx];
+  if (p === me) tgHaptic('medium');
+  else if (game && game.players > 1) toast(`${TEAM_NAME[p]} применили: ${a.icon} ${a.name}`, 2500);
+}
+
 function arrive(g, u, n) {
   if (n.owner === u.owner) { n.units += 1; return; }
   const dmg = buff(g, u.owner, 'dmg') ? 2 : 1;                                   // бустер «Двойной урон»
@@ -813,8 +955,10 @@ function arrive(g, u, n) {
   n.units -= dmg / str;
   if (n.units < -1e-6) {
     n.units = -n.units * str / dmg;  // остаток переходит к атакующему
+    if (n.owner >= 0 && g.lost) g.lost[n.owner]++;
     n.owner = u.owner;
     n.cd = 0;
+    n.frozen = 0;
     n.route = -1; n.route2 = -1;
     if (n.prod > 0) n.prod--;
     if (n.def > 0) n.def--;
@@ -859,7 +1003,7 @@ function collide(g) {
 
 function shoot(g, dt) {
   for (const n of g.nodes) {
-    if (n.owner < 0 || n.def === 0) continue;
+    if (n.owner < 0 || n.def === 0 || frozen(g, n)) continue;
     if (n.cd > 0) { n.cd -= dt; if (n.cd > 0) continue; }
     const R = CFG.shootRange[n.def];
     let best = null, bd = R * R;
@@ -885,6 +1029,7 @@ function step(g, dt) {
   for (const n of g.nodes) {
     const rate = effRate(g, n), cap = capOf(n);
     if (rate > 0 && n.units < cap) n.units = Math.min(cap, n.units + rate * dt);
+    if (frozen(g, n)) continue;             // замороженное здание не отправляет войска
 
     if (n.route >= 0 && n.owner >= 0) {
       n.flowCd -= dt;
@@ -959,6 +1104,51 @@ function attackNeed(g, t, d, power, k) {
   return need;
 }
 
+// Суперспособности бота (не больше одной за раздумье). true — способность применена.
+//   Артудар — по толпе врагов, которая идёт на его здания; Заморозка — по вражескому зданию,
+//   чей поток вот-вот возьмёт его башню; Десант — в чужую башню, которую высадка точно возьмёт.
+function botAbility(g, P, D, incoming, ours) {
+  const base = g.nodes[P];
+  const A = key => ABILITIES.find(a => a.key === key);
+  const ready = key => !abilBlock(g, P, A(key)) && base.units >= A(key).cost + D.eco;
+  if (ready('art')) {
+    const R2 = A('art').radius ** 2;
+    const foes = g.units.filter(u => u.owner !== P && !(u.delay > 0) && g.nodes[u.target].owner === P);
+    let best = null, bc = 0;
+    for (const u of foes) {
+      let c = 0;
+      for (const v of foes) if ((v.x - u.x) ** 2 + (v.y - u.y) ** 2 <= R2) c++;
+      if (c > bc) { bc = c; best = u; }
+    }
+    if (best && bc >= 8) return !useAbility(g, P, 'art', best.x, best.y, -1);
+  }
+  if (ready('freeze')) {
+    for (const n of g.nodes) {
+      if (n.owner < 0 || n.owner === P || frozen(g, n) || n.units < 10) continue;
+      const danger = [n.route, n.route2].some(to => {
+        if (to < 0 || g.nodes[to].owner !== P) return false;
+        const t = g.nodes[to];
+        return (incoming.get(to) || 0) + n.units * 0.5 > t.units * CFG.strength[t.def];
+      });
+      if (danger) return !useAbility(g, P, 'freeze', n.x, n.y, n.id);
+    }
+  }
+  if (ready('drop')) {
+    const units = A('drop').units;
+    let best = null, bs = -Infinity;
+    for (const t of g.nodes) {
+      if (t.owner === P || t.type === 'base' || ours.get(t.id)) continue;
+      const need = t.units * CFG.strength[t.def] + 3 + (t.def ? CFG.shootRate[t.def] * 1.5 : 0);
+      if (need > units * 0.85) continue;
+      const score = -need - dist(base, t) * 0.02 + (t.booster >= 0 ? 15 : 0)
+        + (t.owner === 0 ? D.humanBonus : t.owner > 0 ? D.botPenalty : 0);
+      if (score > bs) { bs = score; best = t; }
+    }
+    if (best && bs > -40) return !useAbility(g, P, 'drop', best.x, best.y, best.id);
+  }
+  return false;
+}
+
 function botStep(g, dt, bot) {
   const P = bot.p, D = DIFFS[bot.diff];
   if (g.over !== null || g.countdown > 0 || !g.alive[P]) return;
@@ -990,6 +1180,7 @@ function botStep(g, dt, bot) {
     break;
   }
   if (actions <= 0) return;
+  if (D.abil && botAbility(g, P, D, incoming, ours) && --actions <= 0) return;
 
   // «Фронт» — насколько башня близка к чужим (нейтральным или вражеским)
   const others = g.nodes.filter(n => n.owner !== P);
@@ -1196,6 +1387,7 @@ function onHostData(d) {
   if (d.t === 'route' && Array.isArray(d.from)) setRoute(game, 1, d.from.map(Number), +d.to, true);
   else if (d.t === 'unroute' && Array.isArray(d.ids)) for (const id of d.ids) clearRoute(game, 1, +id, d.to == null ? undefined : +d.to);
   else if (d.t === 'up') upgrade(game, 1, +d.id, d.b);
+  else if (d.t === 'abil') useAbility(game, 1, String(d.k), +d.x, +d.y, d.id == null ? -1 : +d.id);
   else if (d.t === 'rematch' && game.over !== null) startMatch();
   else if (d.t === 'leave') onOpponentLeft();
 }
@@ -1211,9 +1403,10 @@ function onGuestData(d) {
     mode = 'guest'; me = 1;
     H = +d.h || 720; resize();                     // карта той же формы, что у хоста
     game = {
-      nodes: d.nodes.map((n, i) => ({ id: i, x: n[0], y: n[1], r: n[2], type: n[3] ? 'base' : 'tower', owner: -1, units: 0, prod: 0, def: 0, route: -1, route2: -1, booster: -1, style: n[4] || 0 })),
+      nodes: d.nodes.map((n, i) => ({ id: i, x: n[0], y: n[1], r: n[2], type: n[3] ? 'base' : 'tower', owner: -1, units: 0, prod: 0, def: 0, route: -1, route2: -1, booster: -1, frozen: 0, style: n[4] || 0 })),
       units: [], countdown: 3, over: null, players: 2, alive: [true, true], bots: [],
       time: 0, boostUntil: [0, 0], buffs: [{}, {}],   // у гостя: остаток секунд ускорения и бустеров (из снимка)
+      abil: [abilStart(), abilStart()],               // и остаток перезарядки способностей
     };
     fx = []; selected.clear();
     enterGameUI();
@@ -1224,13 +1417,14 @@ function onGuestData(d) {
 
 function snapshot(g) {
   const n = [];
-  for (const x of g.nodes) n.push(x.owner, Math.round(x.units * 10), x.prod, x.def, x.route, x.booster, x.route2);
+  const left = t => Math.max(0, +(t - g.time).toFixed(1));
+  for (const x of g.nodes) n.push(x.owner, Math.round(x.units * 10), x.prod, x.def, x.route, x.booster, x.route2, Math.round(left(x.frozen) * 10));
   const u = [];
   for (const x of g.units) if (x.delay <= 0) u.push(Math.round(x.x), Math.round(x.y), x.owner, x.target);
-  const left = t => Math.max(0, +(t - g.time).toFixed(1));
   const b = g.boostUntil.map(left);
   const bf = g.buffs.map(o => { const r = {}; for (const k in o) r[k] = left(o[k]); return r; });
-  const s = { t: 's', n, u, e: netEvents, cd: g.countdown, over: g.over, b, bf };
+  const ab = g.abil.map(o => { const r = {}; for (const k in o) r[k] = left(o[k]); return r; });
+  const s = { t: 's', n, u, e: netEvents, cd: g.countdown, over: g.over, b, bf, ab };
   netEvents = [];
   return s;
 }
@@ -1239,10 +1433,11 @@ function applySnapshot(s) {
   const g = game;
   for (let i = 0; i < g.nodes.length; i++) {
     const n = g.nodes[i];
-    const k = i * 7;
+    const k = i * 8;
     n.owner = s.n[k]; n.units = s.n[k + 1] / 10; n.prod = s.n[k + 2]; n.def = s.n[k + 3]; n.route = s.n[k + 4];
     n.route2 = s.n[k + 6];
     n.booster = s.n[k + 5];
+    n.frozen = s.n[k + 7] / 10;
   }
   g.units = [];
   for (let i = 0; i < s.u.length; i += 4) g.units.push({ x: s.u[i], y: s.u[i + 1], owner: s.u[i + 2], target: s.u[i + 3] });
@@ -1250,7 +1445,9 @@ function applySnapshot(s) {
     if (ev[0] === 2) { g.alive[ev[1]] = false; onEliminated(ev[1]); }
     else fx.push({ a: ev, t: 0 });
     if (ev[0] === 3) onBooster(ev[3], ev[4]);
+    if (ev[0] === 4) onAbility(ev[3], ev[4]);
   }
+  if (s.ab) g.abil = s.ab;                 // остаток перезарядки способностей
   g.countdown = s.cd;
   if (s.b) g.boostUntil = s.b;             // g.time у гостя всегда 0, так что это остаток ускорения
   if (s.bf) g.buffs = s.bf;                // и остаток бустеров
@@ -1287,6 +1484,8 @@ function leaveGame() {
   fx = []; netEvents = []; selected.clear();
   endPress(); hoverId = -1; hoverRoute = null; nodeTip = null;
   hideBuffTip();
+  abilAim = null;
+  $('abilBar').classList.add('hidden');
   document.body.classList.remove('ingame');
   canvas.style.cursor = '';
 
@@ -1361,6 +1560,25 @@ function saveMaxLevel(n) {
   if (tg && tg.isVersionAtLeast('6.9')) tg.CloudStorage.setItem(LEVEL_KEY, String(n));   // облако Telegram
 }
 
+// ---------- Звёзды за уровни: лучший результат по каждому уровню { номер: 1..3 } ----------
+const STARS_KEY = 'bitva-bashen-stars';
+let levelStars = {};
+function mergeStars(o) {
+  if (!o || typeof o !== 'object') return;
+  for (const k in o) {
+    const v = Math.min(3, Math.max(0, parseInt(o[k], 10) || 0));
+    if (v > (levelStars[k] || 0)) levelStars[k] = v;
+  }
+}
+try { mergeStars(JSON.parse(localStorage.getItem(STARS_KEY) || 'null')); } catch (e) {}
+function saveStars() {
+  try { localStorage.setItem(STARS_KEY, JSON.stringify(levelStars)); } catch (e) {}
+  if (tg && tg.isVersionAtLeast('6.9')) tg.CloudStorage.setItem(STARS_KEY, JSON.stringify(levelStars));
+}
+const starsOf = level => levelStars[level] || 0;
+const totalStars = () => Object.values(levelStars).reduce((s, v) => s + v, 0);
+const starStr = n => '★'.repeat(n) + '☆'.repeat(3 - n);
+
 function enterGameUI() {
   document.body.classList.add('ingame');
   $('lobby').classList.add('hidden');
@@ -1413,8 +1631,25 @@ function onGameOver(winner) {
   let text = win
     ? (game.players > 2 ? 'Все соперники повержены.' : 'Главное здание соперника захвачено.')
     : 'Ваше главное здание захвачено.';
-  if (level && win) { saveMaxLevel(level + 1); text = `Уровень ${level} пройден! ` + text; }
+  let starsHtml = '';
+  if (level && win) {
+    saveMaxLevel(level + 1);
+    text = `Уровень ${level} пройден! ` + text;
+    // звёзды: победа + быстрее контрольного времени + ни одной своей башни не отдано
+    const limit = starTime(levelParams(level));
+    const fast = game.time <= limit, kept = !game.lost[me];
+    const got = 1 + fast + kept, best = Math.max(got, starsOf(level));
+    if (got > starsOf(level)) { levelStars[level] = got; saveStars(); }
+    const line = (ok, t) => `<div class="${ok ? 'ok' : 'no'}">${ok ? '★' : '☆'} ${t}</div>`;
+    starsHtml = `<div class="big">${starStr(got)}</div>` +
+      line(true, 'Победа') +
+      line(fast, `Быстрее ${fmtTime(limit)} — ваше время ${fmtTime(game.time)}`) +
+      line(kept, kept ? 'Враг не захватил ни одной вашей башни' : `Враг захватил ваших башен: ${game.lost[me]}`) +
+      (best > got ? `<div class="best">Лучший результат: ${starStr(best)}</div>` : '');
+  }
   showOverlay(win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ', text, true, 'over');
+  $('ovStars').innerHTML = starsHtml;
+  $('ovStars').classList.toggle('hidden', !starsHtml);
   tgHaptic(win ? 'success' : 'error');
   $('ovTitle').style.color = win ? '#5fe39a' : 'var(--red)';
   $('nextBtn').classList.toggle('hidden', !(level && win));
@@ -1429,6 +1664,7 @@ function showOverlay(title, text, canRematch, kind) {
   $('rematchBtn').disabled = false;
   $('rematchBtn').textContent = 'Реванш';
   $('nextBtn').classList.add('hidden');
+  $('ovStars').classList.add('hidden');
   $('overlay').dataset.kind = kind;
   $('overlay').classList.remove('hidden');
 }
@@ -1498,6 +1734,67 @@ function cmdUpgrade(id, b) {
   else upgrade(game, me, id, b);
 }
 
+// ---------- Суперспособности: кнопка → выбор цели на карте → применение ----------
+let abilAim = null;                          // какая способность ждёт цели (key) или null
+function toggleAbility(key) {
+  if (!playing()) return;
+  if (abilAim === key) { cancelAim(); return; }
+  const a = ABILITIES.find(v => v.key === key);
+  const block = abilBlock(game, me, a);
+  if (block) { toast(block); return; }
+  abilAim = key;
+  selected.clear();
+  const where = a.aim === 'point' ? 'место на карте' : a.aim === 'enemy' ? 'вражеское здание' : 'башню (свою или чужую)';
+  toast(`${a.icon} ${a.name}: ${IS_TOUCH ? 'коснитесь' : 'выберите'} ${where}`, 60000);
+}
+function cancelAim() {
+  if (!abilAim) return;
+  abilAim = null;
+  toast('Отменено', 800);
+}
+function castAt(p, touch) {
+  const a = ABILITIES.find(v => v.key === abilAim);
+  const n = pick(p, touch);
+  if (a.aim !== 'point' && !abilTargetOk(game, me, a, n)) {
+    toast(a.aim === 'enemy' ? `${a.icon} Выберите вражеское здание` : `${a.icon} Выберите башню`, 60000);
+    return;
+  }
+  abilAim = null;
+  const x = n && a.aim !== 'point' ? n.x : Math.round(p.x), y = n && a.aim !== 'point' ? n.y : Math.round(p.y);
+  const id = n && a.aim !== 'point' ? n.id : -1;
+  if (mode === 'guest') { net({ t: 'abil', k: a.key, x, y, id }); toast(`${a.icon} ${a.name}!`, 1000); return; }
+  const err = useAbility(game, me, a.key, x, y, id);
+  toast(err || `${a.icon} ${a.name}!`, err ? 1600 : 1000);
+}
+
+let abilKey = '';
+function updateAbilBar() {
+  const bar = $('abilBar');
+  const show = game && playing() && game.alive[me];
+  bar.classList.toggle('hidden', !show);
+  if (!show) {
+    if (abilAim) { abilAim = null; $('toast').style.opacity = 0; }   // бой кончился, пока выбирали цель
+    return;
+  }
+  const base = game.nodes[me];
+  const parts = [];
+  for (const a of ABILITIES) {
+    const left = Math.max(0, game.abil[me][a.key] - game.time);
+    parts.push(a.key, Math.ceil(left), Math.round(left / a.cd * 40), base.units >= a.cost ? 1 : 0, abilAim === a.key ? 1 : 0);
+  }
+  const key = parts.join(':');
+  if (key === abilKey) return;
+  abilKey = key;
+  for (const a of ABILITIES) {
+    const btn = bar.querySelector(`[data-k="${a.key}"]`);
+    const left = Math.max(0, game.abil[me][a.key] - game.time);
+    btn.style.setProperty('--p', Math.min(1, left / Math.max(a.cd, ABIL_FIRST)).toFixed(3));
+    btn.querySelector('.cdv').textContent = left > 0 ? Math.ceil(left) : '';
+    btn.classList.toggle('off', left > 0 || base.units < a.cost);
+    btn.classList.toggle('aim', abilAim === a.key);
+  }
+}
+
 let toastTimer = 0;
 function toast(text, ms = 1600) {
   const t = $('toast');
@@ -1530,7 +1827,7 @@ function layoutBox() {
   let vw = viewW() - safe.l - safe.r, vh = viewH() - safe.t - safe.b;
   const isCompact = vh < 600;
   const top = hudInBand ? 4 : isCompact ? 44 : 60;
-  const bottom = isCompact ? 6 : 16, side = isCompact ? 8 : 16;
+  const bottom = isCompact ? 52 : 66, side = isCompact ? 8 : 16;   // снизу — место под кнопки способностей
   return { vw, vh, isCompact, top, bottom, side, availW: vw - side * 2, availH: vh - top - bottom };
 }
 function resize() {
@@ -1608,6 +1905,10 @@ canvas.addEventListener('pointerdown', e => {
   const touch = e.pointerType !== 'mouse';
   const p = toLogical(e);
   mouse = p;
+  if (abilAim) {                               // ждём цель для способности
+    if (e.button === 2) cancelAim(); else if (e.button === 0) castAt(p, touch);
+    return;
+  }
   const n = pick(p, touch);
   hoverId = n ? n.id : -1;
   if (e.button !== 0) return;
@@ -1689,17 +1990,26 @@ window.addEventListener('keydown', e => {
     if (!$('settingsModal').classList.contains('hidden')) closeSettings();
     else if (!$('leaveModal').classList.contains('hidden')) closeLeaveDialog();
     else if (!$('helpModal').classList.contains('hidden')) $('helpModal').classList.add('hidden');
+    else if (abilAim) cancelAim();
     else if (selected.size) selected.clear();
     else if ($('overlay').classList.contains('hidden')) openLeaveDialog();
     return;
   }
   if (!playing()) return;
-  if (['x', 'ч', 'delete', 'backspace'].includes(k)) cmdUnroute([...selected]);
+  if (['1', '2', '3'].includes(k) && ABILITIES[+k - 1]) toggleAbility(ABILITIES[+k - 1].key);
+  else if (['x', 'ч', 'delete', 'backspace'].includes(k)) cmdUnroute([...selected]);
   else if (k === 'a' || k === 'ф') selectAll();
   else if ((k === 'q' || k === 'й') && selected.size === 1) cmdUpgrade([...selected][0], 'prod');
   else if ((k === 'e' || k === 'у') && selected.size === 1) cmdUpgrade([...selected][0], 'def');
 });
 
+$('abilBar').innerHTML = ABILITIES.map((a, i) =>
+  `<button class="ab-btn" data-k="${a.key}" style="--ab:${a.color}" title="${a.name} (${i + 1}): ${abilText(a)}. Цена ${a.cost} войск из главного здания, перезарядка ${a.cd} с" aria-label="${a.name}">` +
+  `${a.icon}<span class="cdv"></span><span class="cost">${a.cost}</span><kbd>${i + 1}</kbd></button>`).join('');
+$('abilBar').addEventListener('click', e => {
+  const b = e.target.closest('.ab-btn');
+  if (b) toggleAbility(b.dataset.k);
+});
 $('upProd').onclick = () => selected.size === 1 && cmdUpgrade([...selected][0], 'prod');
 $('upDef').onclick = () => selected.size === 1 && cmdUpgrade([...selected][0], 'def');
 $('unrouteBtn').onclick = () => cmdUnroute([...selected]);
@@ -1761,11 +2071,51 @@ function frame(now) {
   drawUnits(now / 1000);
   drawFx(dt);
   drawNodes(now / 1000);
+  drawAbilAim(now / 1000);
   drawRouteHover();
   drawBoosterTip(now);
   drawCountdown();
   updateHud();
   updatePanel();
+  updateAbilBar();
+}
+
+// Выбор цели для способности: круг Артудара под курсором, подсветка подходящих зданий
+function drawAbilAim(t) {
+  if (!abilAim) return;
+  const a = ABILITIES.find(v => v.key === abilAim);
+  const pulse = 0.5 + 0.5 * Math.sin(t * 6);
+  if (a.aim === 'point') {
+    if (mouse.x < -100) return;
+    const x = X(mouse.x), y = mouse.y;
+    circle(x, y, a.radius);
+    ctx.fillStyle = alpha(a.color, 0.12 + 0.08 * pulse); ctx.fill();
+    ctx.setLineDash([8, 6]); ctx.strokeStyle = alpha(a.color, 0.9); ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]);
+    return;
+  }
+  for (const n of game.nodes) {
+    if (!abilTargetOk(game, me, a, n)) continue;
+    const hot = n.id === hoverId;
+    circle(X(n.x), n.y, n.r + 10 + pulse * 4);
+    ctx.strokeStyle = alpha(a.color, hot ? 0.95 : 0.35 + 0.25 * pulse);
+    ctx.lineWidth = hot ? 4 : 2; ctx.stroke();
+  }
+}
+
+// Замороженное здание: ледяной круг и снежинка с оставшимися секундами
+function drawFrozen(n) {
+  if (!frozen(game, n)) return;
+  const x = X(n.x), y = n.y;
+  circle(x, y, n.r * 1.35);
+  ctx.fillStyle = 'rgba(110,231,255,0.18)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(166,236,255,0.85)'; ctx.lineWidth = 3; ctx.stroke();
+  const left = Math.ceil(n.frozen - game.time), f = fontPx(15, 12);
+  ctx.font = `800 ${f}px Rubik, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 4; ctx.strokeStyle = '#0b0f19';
+  ctx.strokeText(`❄ ${left}`, x, y + n.r * 0.3);
+  ctx.fillStyle = '#a6ecff';
+  ctx.fillText(`❄ ${left}`, x, y + n.r * 0.3);
 }
 
 function drawBoard() {
@@ -2111,6 +2461,32 @@ function drawFx(dt) {
       ctx.fillStyle = b.color;
       ctx.fillText(`${b.icon} ${b.name}`, X(a[1]), ty);
       ctx.globalAlpha = 1;
+    } else if (a[0] === 4) {                    // суперспособность: [4, x, y, игрок, номер]
+      const ab = ABILITIES[a[4]], x = X(a[1]), y = a[2];
+      const life = 1.4, k = 1 - f.t / life;
+      if (k <= 0) continue;
+      if (ab.key === 'art') {                   // взрыв на весь радиус
+        const e = Math.min(1, f.t / 0.35);
+        const gr = ctx.createRadialGradient(x, y, 0, x, y, ab.radius * (0.4 + 0.6 * e));
+        gr.addColorStop(0, alpha('#fff3c4', 0.9 * k)); gr.addColorStop(0.45, alpha(ab.color, 0.6 * k)); gr.addColorStop(1, alpha(ab.color, 0));
+        ctx.fillStyle = gr;
+        circle(x, y, ab.radius * (0.4 + 0.6 * e)); ctx.fill();
+        circle(x, y, ab.radius * e);
+        ctx.strokeStyle = alpha(ab.color, k); ctx.lineWidth = 3; ctx.stroke();
+      } else {                                  // заморозка и десант — расходящееся кольцо
+        circle(x, y, 20 + (1 - k) * 70);
+        ctx.strokeStyle = alpha(ab.color, k); ctx.lineWidth = 4 * k + 1; ctx.stroke();
+      }
+      const fz = fontPx(16, 12);
+      ctx.globalAlpha = Math.min(1, k * 2.5);
+      ctx.font = `800 ${fz}px Rubik, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 4; ctx.strokeStyle = '#0b0f19';
+      const ty = y - 70 - (1 - k) * 30;
+      ctx.strokeText(`${ab.icon} ${ab.name}`, x, ty);
+      ctx.fillStyle = ab.color;
+      ctx.fillText(`${ab.icon} ${ab.name}`, x, ty);
+      ctx.globalAlpha = 1;
     }
   }
   fx = fx.filter(f => f.t < 3);
@@ -2156,6 +2532,7 @@ function drawNodes(t) {
     if (!box) drawCircleNode(n, t);
     else if (box.neon) drawNeonNode(n, box, t);
     else drawTowerNode(n, box, t);
+    drawFrozen(n);
   }
 }
 
@@ -2560,6 +2937,11 @@ function updateHud() {
   };
   let html = chip(me);
   for (let p = 0; p < n; p++) if (p !== me) html += chip(p);
+  // в уровне — таймер: золотой, пока успеваем на звезду за скорость
+  if (mode === 'solo' && matchCfg.kind === 'level' && game.countdown <= 0) {
+    const limit = starTime(levelParams(matchCfg.level)), ok = game.time <= limit;
+    html += `<div class="chip timer" title="Звезда за скорость — победа быстрее ${fmtTime(limit)}" style="color:${ok ? 'var(--gold)' : 'var(--muted)'}">⏱ ${fmtTime(game.time)}${ok ? ' ★' : ''}</div>`;
+  }
   if (html !== hudKey) {
     $('stats').innerHTML = html; hudKey = html;
     $('stats').classList.toggle('many', many);
@@ -2729,7 +3111,14 @@ function renderLevelCard() {
   $('lvlTitle').textContent = `Уровень ${shownLevel}`;
   $('lvlInfo').textContent = `Соперников: ${lp.enemies} · башен: ~${lp.towers} · ${DIFFS[lp.diff].name.toLowerCase()}` +
     (lp.bonus ? ` · у врагов +${lp.bonus} войск` : '');
-  $('lvlDone').classList.toggle('hidden', shownLevel >= max);
+  // пройденный уровень: звёзды (уровни, пройденные до появления звёзд, — просто «Пройден»)
+  const st = starsOf(shownLevel);
+  $('lvlDone').textContent = st ? `${starStr(st)} Пройден` : '✓ Пройден';
+  $('lvlDone').classList.toggle('hidden', shownLevel >= max && !st);
+  $('lvlGoal').innerHTML = `★ победа · ★ быстрее ${fmtTime(starTime(lp))} · ★ не отдать врагу ни одной башни`;
+  const total = totalStars();
+  $('starsTotal').textContent = `★ ${total}`;
+  $('starsTotal').classList.toggle('hidden', !total);
   $('lvlPrev').disabled = shownLevel <= 1;
   $('lvlNext').disabled = shownLevel >= max;
   $('levelBtn').textContent = `Играть уровень ${shownLevel}`;
@@ -2839,6 +3228,15 @@ function initTelegram() {
       try { mergeStats(JSON.parse(v)); } catch (e) { return; }
       try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); } catch (e) {}
       renderStats();
+    });
+  }
+  // звёзды за уровни из облака Telegram
+  if (tg.isVersionAtLeast('6.9')) {
+    tg.CloudStorage.getItem(STARS_KEY, (err, v) => {
+      if (err || !v) return;
+      try { mergeStars(JSON.parse(v)); } catch (e) { return; }
+      try { localStorage.setItem(STARS_KEY, JSON.stringify(levelStars)); } catch (e) {}
+      renderLevelCard();
     });
   }
   // прогресс уровней из облака Telegram (общий для телефона и компьютера)
