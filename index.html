@@ -587,11 +587,12 @@ const ABILITIES = [
   { key: 'freeze', icon: '❄️', name: 'Заморозка', cost: 20, cd: 75, secs: 6, color: '#6ee7ff', aim: 'enemy' },
   { key: 'drop',   icon: '🪂', name: 'Десант',    cost: 25, cd: 120, units: 20, color: '#5fe39a', aim: 'node' },
 ];
-const ABIL_FIRST = 20;         // через сколько секунд после начала боя способности становятся доступны
+const ABIL_FIRST = 90;         // через сколько секунд после начала боя способности становятся доступны (1:30)
 function abilText(a) {
   if (a.key === 'art') return `уничтожает всех вражеских бойцов в круге и выбивает по ${a.towerDmg} защитников из чужих зданий в нём`;
   if (a.key === 'freeze') return `вражеское здание ${a.secs} с не производит войска, не отправляет их и не стреляет`;
-  return `${a.units} бойцов высаживаются прямо у выбранной башни: у чужой — атакуют её, у своей — усиливают`;
+  return `${a.units} бойцов высаживаются прямо у выбранной башни: у чужой — атакуют её, у своей — усиливают. ` +
+    'К чужим главным зданиям десант не долетает — их прикрывает ПВО';
 }
 
 // Особая башня: в каждой игре одна, тип случайный. Стоит в самом честном месте карты —
@@ -724,7 +725,7 @@ const RULES_HTML = `
       ${SPECIALS.map(s => `<br>${s.icon} <b>${s.name}</b>: ${specialText(s)}.`).join('')}
       <br>Гарнизон у особой башни сильнее обычного, а захватить её могут и соперники.</li>
     <li><b>Суперспособности</b> — три кнопки внизу экрана. Их оплачивают войсками из <b>главного здания</b>,
-      после применения способность перезаряжается. Первый раз их можно применить через ${ABIL_FIRST} с после начала боя.
+      после применения способность перезаряжается. Первый раз их можно применить только через ${fmtTime(ABIL_FIRST)} после начала боя, чтобы в начале все развивались на равных.
       ${ABILITIES.map((a, i) => `<br>${a.icon} <b>${a.name}</b>${IS_TOUCH ? '' : ` (<kbd>${i + 1}</kbd>)`}: ${abilText(a)}. Цена ${a.cost} войск, перезарядка ${a.cd} с.`).join('')}
       <br>${IS_TOUCH ? 'Нажмите кнопку способности, затем коснитесь цели на карте. Повторное нажатие на кнопку отменяет выбор.'
         : 'Нажмите кнопку способности (или цифру), затем кликните по цели на карте. <kbd>Esc</kbd> или правый клик отменяет выбор.'}
@@ -1071,14 +1072,24 @@ function abilBlock(g, p, a) {
   if (!g.alive[p] || g.over !== null) return 'Сейчас нельзя';
   if (g.countdown > 0) return 'Бой ещё не начался';
   const left = g.abil[p][a.key] - g.time;
-  if (left > 0) return `${a.icon} ${a.name}: перезарядка ещё ${Math.ceil(left)} с`;
+  const elapsed = g === game && mode === 'guest' ? matchSeconds() : g.time;   // у гостя g.time всегда 0
+  if (left > 0) return elapsed < ABIL_FIRST - 0.5
+    ? `${a.icon} Способности откроются через ${fmtTime(Math.ceil(left))} после начала боя`
+    : `${a.icon} ${a.name}: перезарядка ещё ${Math.ceil(left)} с`;
   if (g.nodes[p].units < a.cost) return `${a.icon} ${a.name}: нужно ${a.cost} войск в главном здании`;
   return '';
 }
+// ПВО: десант не долетает до чужих главных зданий (к своему — можно, это подкрепление).
+// Обычные башни — любые, свои и чужие.
+const airDefended = (t, p) => t.type === 'base' && t.owner !== p;
 function abilTargetOk(g, p, a, t) {
   if (a.aim === 'enemy') return !!t && t.owner >= 0 && t.owner !== p;
-  if (a.aim === 'node') return !!t;
+  if (a.aim === 'node') return !!t && !(a.key === 'drop' && airDefended(t, p));
   return true;
+}
+function abilTargetError(a, t, p) {
+  if (a.key === 'drop' && t && airDefended(t, p)) return `${a.icon} ПВО главного здания сбивает десант — выберите башню`;
+  return a.aim === 'enemy' ? `${a.icon} Выберите вражеское здание` : `${a.icon} Выберите башню`;
 }
 
 // Применить способность key игрока p: в точку (x, y) карты или по зданию id. Возвращает '' или причину отказа.
@@ -1088,7 +1099,7 @@ function useAbility(g, p, key, x, y, id) {
   const block = abilBlock(g, p, a);
   if (block) return block;
   const t = id >= 0 ? g.nodes[id] : null;
-  if (!abilTargetOk(g, p, a, t)) return a.aim === 'enemy' ? 'Выберите вражеское здание' : 'Выберите башню';
+  if (!abilTargetOk(g, p, a, t)) return abilTargetError(a, t, p);
   if (t) { x = t.x; y = t.y; }
   x = Math.max(0, Math.min(W, +x || 0)); y = Math.max(0, Math.min(H, +y || 0));
   const base = g.nodes[p];
@@ -1231,7 +1242,8 @@ function step(g, dt) {
 
   // Штаб: способности перезаряжаются быстрее (срок готовности приближается)
   for (let p = 0; p < g.players; p++) {
-    if (hasSpecial(g, p, 'hq')) for (const k in g.abil[p]) if (g.abil[p][k] > g.time) g.abil[p][k] -= dt * (HQ_RECHARGE - 1);
+    // (но не раньше общего старта способностей — Штаб не открывает их в начале боя)
+    if (hasSpecial(g, p, 'hq')) for (const k in g.abil[p]) if (g.abil[p][k] > g.time) g.abil[p][k] = Math.max(ABIL_FIRST, g.abil[p][k] - dt * (HQ_RECHARGE - 1));
   }
   const speedOf = Array.from({ length: g.players }, (_, p) => CFG.speed * dt * (buff(g, p, 'speed') ? SPEED_MUL : 1)
     * (hasSpecial(g, p, 'beacon') ? BEACON_SPEED : 1));
@@ -2212,7 +2224,7 @@ function castAt(p, touch) {
   const a = ABILITIES.find(v => v.key === abilAim);
   const n = pick(p, touch);
   if (a.aim !== 'point' && !abilTargetOk(game, me, a, n)) {
-    toast(a.aim === 'enemy' ? `${a.icon} Выберите вражеское здание` : `${a.icon} Выберите башню`, 60000);
+    toast(abilTargetError(a, n, me), 60000);
     return;
   }
   abilAim = null;
@@ -2245,7 +2257,7 @@ function updateAbilBar() {
     const btn = bar.querySelector(`[data-k="${a.key}"]`);
     const left = Math.max(0, game.abil[me][a.key] - game.time);
     btn.style.setProperty('--p', Math.min(1, left / Math.max(a.cd, ABIL_FIRST)).toFixed(3));
-    btn.querySelector('.cdv').textContent = left > 0 ? Math.ceil(left) : '';
+    btn.querySelector('.cdv').textContent = left <= 0 ? '' : left >= 60 ? fmtTime(Math.ceil(left)) : Math.ceil(left);
     btn.classList.toggle('off', left > 0 || base.units < a.cost);
     btn.classList.toggle('aim', abilAim === a.key);
   }
@@ -2681,6 +2693,17 @@ function drawAbilAim(t) {
     return;
   }
   for (const n of game.nodes) {
+    if (a.key === 'drop' && airDefended(n, me)) {     // чужое главное здание под ПВО: красный купол и подпись
+      const x = X(n.x), r = n.r * 2.1, f = fontPx(12, 10);
+      ctx.beginPath(); ctx.arc(x, n.y, r, Math.PI, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,77,94,0.10)'; ctx.fill();
+      ctx.setLineDash([6, 5]); ctx.strokeStyle = 'rgba(255,120,130,0.8)'; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+      ctx.font = `800 ${f}px Rubik, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const ly = Math.min(n.y - r - f * 0.6, nodeTop(n) - f * 0.9);   // над куполом и над флагом с числом
+      ctx.lineWidth = 3; ctx.strokeStyle = '#0b0f19'; ctx.strokeText('🚫 ПВО', x, ly);
+      ctx.fillStyle = '#ffb3ba'; ctx.fillText('🚫 ПВО', x, ly);
+      continue;
+    }
     if (!abilTargetOk(game, me, a, n)) continue;
     const hot = n.id === hoverId;
     circle(X(n.x), n.y, n.r + 10 + pulse * 4);
