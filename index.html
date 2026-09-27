@@ -478,11 +478,11 @@ const TEAM_NAME = ['Синие', 'Красные', 'Зелёные', 'Фиоле
 //   botPenalty — насколько неохотно бьёт других ботов (сложные вместе давят на игрока),
 //   prodMul — множитель производства, startBonus — войск на старте, firstMove — пауза перед первым ходом (с)
 const DIFFS = [
-  { name: 'Лёгкий',  react: [4.0, 5.5], actions: 1, margin: 2.2, defend: 0.25, upgrade: 0.3, eco: 40,
+  { name: 'Лёгкий',  react: [3.5, 4.0], actions: 1, margin: 2.2, defend: 0.25, upgrade: 0.3, eco: 40,
     humanBonus: -20, botPenalty: 0, prodMul: 0.8, startBonus: -5, firstMove: 12 },
-  { name: 'Средний', react: [1.3, 2.2], actions: 2, margin: 1.15, defend: 1, upgrade: 1, eco: 25,
+  { name: 'Средний', react: [1.3, 2.0], actions: 2, margin: 1.15, defend: 1, upgrade: 1, eco: 25,
     humanBonus: 4, botPenalty: 0, prodMul: 1, startBonus: 0, firstMove: 1.5 },
-  { name: 'Сложный', react: [0.6, 1.0], actions: 3, margin: 1.05, defend: 1, upgrade: 1, eco: 20,
+  { name: 'Сложный', react: [0.5, 1.0], actions: 3, margin: 1.05, defend: 1, upgrade: 1, eco: 20,
     humanBonus: 12, botPenalty: -5, prodMul: 1.1, startBonus: 5, firstMove: 1 },
   // хардкор: всё на максимум, боты между собой не воюют, главное здание сразу с фортом
   { name: 'Хардкор', react: [0.2, 0.35], actions: 6, margin: 1.0, defend: 1, upgrade: 1, eco: 5,
@@ -505,13 +505,13 @@ function levelParams(n) {
 }
 
 const CFG = {
-  speed: 62,                         // скорость войск, px/с
+  speed: 70,                       // скорость войск, px/с
   baseProd: 1.2, baseProdPer: 0.6,   // производство главного здания
-  towerProd: [0, 0.6, 1.0, 1.5],     // производство казармы по уровням
+  towerProd: [0, 0.6, 1.0, 1.6],     // производство казармы по уровням
   strength: [1, 1.5, 2, 3],          // сколько атакующих нужно на одного защитника
   shootRate: [0, 0.8, 1.5, 2.5],     // выстрелов в секунду у форта
   shootRange: [0, 105, 120, 140],    // радиус стрельбы форта
-  cost: [10, 20, 35],                // цена улучшения до ур. 1/2/3
+  cost: [15, 20, 35],               // цена улучшения до ур. 1/2/3
   flow: 2,                           // войск в секунду по проложенному пути
 };
 
@@ -604,10 +604,10 @@ function prodRate(n) {
   if (n.owner < 0) return 0;
   return n.type === 'base' ? CFG.baseProd + CFG.baseProdPer * n.prod : CFG.towerProd[n.prod];
 }
-// Скрытая механика (в правилах не описана): когда у игрока становится 4 захваченные башни,
-// его главное здание 10 секунд производит войска вдвое быстрее. Чтобы получить ускорение
-// снова, нужно опуститься ниже четырёх башен и снова дойти до четырёх.
-const BOOST_TOWERS = 4, BOOST_MUL = 2, BOOST_SECS = 10;
+// Скрытая механика (в правилах не описана): когда у игрока становится 5 захваченных башен,
+// его главное здание 10 секунд производит войска в 1.5 раза быстрее. Чтобы получить ускорение
+// снова, нужно опуститься ниже пяти башен и снова дойти до пяти.
+const BOOST_TOWERS = 5, BOOST_MUL = 1.5, BOOST_SECS = 10;
 function baseBoosted(g, n) {
   return n.type === 'base' && n.owner === n.id && g.boostUntil[n.owner] > g.time;   // только своё главное здание
 }
