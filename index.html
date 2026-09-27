@@ -487,7 +487,7 @@ const NETWORK_ENABLED = TG_LAUNCH;
 // Ссылка на игру в Telegram: приглашение в комнату — ?startapp=КОД (друг сразу попадает в комнату)
 // Главное Mini App бота (галерея Pleasure Union): t.me/бот?startapp=… — отдельного «/play» у бота нет
 const TG_APP_LINK = 'https://t.me/pleasure_union_bot';
-const PEER_PREFIX = 'bitva-bashen-v3-';   // v3 — способности и особая башня (старая версия с новой не соединится)
+const PEER_PREFIX = 'bitva-bashen-v4-';   // v4 — способности, особая башня, ландшафт (старая версия с новой не соединится)
 const CODE_LEN = 4;      // код комнаты — 4 цифры, его легко продиктовать и ввести
 
 const COL = {
@@ -591,6 +591,57 @@ function specialText(s) {
   return `ваши суперспособности перезаряжаются в ${HQ_RECHARGE} раза быстрее`;
 }
 
+// Ландшафт: пятна болота и леса, на каждой карте в новых местах. Бойцы в них идут медленнее
+// (mul — множитель скорости). Башни на ландшафте не стоят, от главных зданий он держится подальше.
+const TERRAIN = [
+  { key: 'swamp',  icon: '🌿', name: 'Болото', mul: 0.5 },
+  { key: 'forest', icon: '🌲', name: 'Лес',    mul: 0.75 },
+];
+const TERRAIN_COUNT = [3, 5];          // сколько пятен на карте: от и до (в дуэли — пары, отражённые через центр)
+const TERRAIN_SIZE = [55, 90];         // радиус пятна: от и до
+const TERRAIN_BASE_GAP = 190;          // не ближе к главному зданию (до края пятна)
+function terrainText(tr) { return `бойцы идут ${tr.mul === 0.5 ? 'вдвое' : `на ${Math.round((1 - tr.mul) * 100)}%`} медленнее`; }
+// Неровный край пятна: радиус зависит от направления (две «гармоники»)
+function zoneR(z, ang) { return z.r * (1 + z.a1 * Math.sin(3 * (ang - z.rot) + z.p1) + z.a2 * Math.sin(5 * (ang - z.rot) + z.p2)); }
+function inZone(z, x, y) {
+  const dx = x - z.x, dy = y - z.y, d = Math.hypot(dx, dy);
+  return d <= z.r * 1.3 && d <= zoneR(z, Math.atan2(dy, dx));
+}
+function terrainAt(g, x, y) {
+  if (g.terrain) for (const z of g.terrain) if (inZone(z, x, y)) return z;
+  return null;
+}
+const terrainMul = (g, x, y) => { const z = terrainAt(g, x, y); return z ? TERRAIN[z.k].mul : 1; };
+// Во сколько раз дольше идти от a до b из-за ландшафта (для расчётов бота)
+function travelFactor(g, a, b) {
+  if (!g.terrain || !g.terrain.length) return 1;
+  let s = 0;
+  for (let i = 0; i < 12; i++) { const k = (i + 0.5) / 12; s += 1 / terrainMul(g, a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k); }
+  return s / 12;
+}
+// Пятна ставятся после главных зданий, но до башен. mirror — дуэль: каждое пятно с отражённой через центр парой.
+function genTerrain(bases, mirror, avoid = []) {
+  const out = [], rnd = (a, b) => a + Math.random() * (b - a);
+  const want = Math.round(rnd(TERRAIN_COUNT[0], TERRAIN_COUNT[1] + 0.49));
+  const fits = (x, y, r) => x > 40 + r * 0.8 && x < W - 40 - r * 0.8 && y > 90 + r * 0.6 && y < H - 30 - r * 0.6
+    && bases.every(b => Math.hypot(b.x - x, b.y - y) >= TERRAIN_BASE_GAP + r)
+    && avoid.every(n => Math.hypot(n.x - x, n.y - y) >= r * 1.3 + n.r + 12)
+    && out.every(z => Math.hypot(z.x - x, z.y - y) >= (z.r + r) * 1.05);
+  for (let tries = 0; out.length < want && tries < 800; tries++) {
+    const r = rnd(TERRAIN_SIZE[0], TERRAIN_SIZE[1]), x = rnd(60, W - 60), y = rnd(100, H - 50);
+    if (!fits(x, y, r)) continue;
+    if (mirror && (Math.hypot(x - W / 2, y - H / 2) < r * 1.2 || !fits(W - x, H - y, r))) continue;
+    const z = { k: Math.random() < 0.5 ? 0 : 1, x: Math.round(x), y: Math.round(y), r: Math.round(r),
+      rot: +rnd(0, 6.28).toFixed(2), a1: +rnd(0.08, 0.17).toFixed(2), p1: +rnd(0, 6.28).toFixed(2),
+      a2: +rnd(0.04, 0.09).toFixed(2), p2: +rnd(0, 6.28).toFixed(2) };
+    out.push(z);
+    if (mirror) out.push({ ...z, x: W - z.x, y: H - z.y, rot: +(z.rot + Math.PI).toFixed(3) });
+  }
+  return out;
+}
+// Не стоит ли точка (башня радиуса r) на ландшафте
+const onTerrain = (terrain, x, y, r = 24) => terrain.some(z => Math.hypot(z.x - x, z.y - y) < z.r * 1.3 + r + 6);
+
 // Звёзды за уровень: ★ — победа, ★ — победа быстрее контрольного времени, ★ — ни одна ваша башня не захвачена врагом.
 // Контрольное время = основа + за каждого соперника + за каждую башню (с).
 const STAR_TIME_BASE = 60, STAR_TIME_PER_ENEMY = 60, STAR_TIME_PER_TOWER = 5;
@@ -635,6 +686,11 @@ const RULES_HTML = `
     <li>Главное здание само производит войска. Серые башни нейтральные: в них сидит гарнизон, который нужно перебить.</li>
     <li><b>Бустеры</b> спрятаны в некоторых серых башнях, над ними золотой <b>?</b>. Бустер получает тот, кто первым захватит башню:
       ${BOOSTERS.map(b => `<br>${b.icon} <b>${b.name}</b>${b.secs ? ` (${b.secs} с)` : ''}: ${b.text}.`).join('')}</li>
+    <li><b>Ландшафт:</b> на каждой карте в новых местах появляются пятна болота и леса. Проходя через них, бойцы замедляются:
+      ${TERRAIN.map(tr => `<br>${tr.icon} <b>${tr.name}</b>: ${terrainText(tr)}.`).join('')}
+      <br>Бойцы идут по прямой, поэтому путь через болото дольше: иногда выгоднее атаковать башню, к которой дорога чистая.
+      Обойти пятно можно через свою башню: проложите путь к ней, а от неё — дальше. Башни на ландшафте не стоят.
+      ${IS_TOUCH ? 'Коснитесь пятна' : 'Наведите мышь на пятно'}, чтобы увидеть подсказку.</li>
     <li><b>Особая башня:</b> в каждой игре на карте одна особая башня (над ней значок, вокруг золотое свечение).
       Она стоит примерно на одинаковом расстоянии от всех главных зданий, и её тип каждый раз случайный.
       Пока башня ваша, действует её свойство:
@@ -762,7 +818,7 @@ function upCost(g, p, lv) {
 // Ставим одну особую башню случайного типа. В дуэли — центральная башня (карта симметрична),
 // иначе — серая башня, которая меньше всего «ближе к кому-то»: разница между самым дальним
 // и самым ближним главным зданием минимальна.
-function placeSpecial(nodes, duel) {
+function placeSpecial(nodes, duel, terrain = []) {
   const idx = Math.floor(Math.random() * SPECIALS.length);
   let t;
   if (duel) t = nodes[2];
@@ -788,7 +844,7 @@ function placeSpecial(nodes, duel) {
     }
     for (let k = 1; k > 0.05; k -= 0.1) {
       const x = t.x + (fx - t.x) * k, y = t.y + (fy - t.y) * k;
-      if (nodes.every(n => n === t || Math.hypot(n.x - x, n.y - y) >= (n.type === 'base' ? 110 : 85))) {
+      if (!onTerrain(terrain, x, y) && nodes.every(n => n === t || Math.hypot(n.x - x, n.y - y) >= (n.type === 'base' ? 110 : 85))) {
         t.x = Math.round(x); t.y = Math.round(y);
         break;
       }
@@ -818,12 +874,13 @@ function makeNode(nodes, x, y, type, owner, units) {
 }
 
 // Карта для сетевой дуэли: симметрична относительно центра, чтобы было честно
-function genDuelMap() {
+function genDuelMap(terrain) {
   const nodes = [];
   const mk = (x, y, type, owner, units) => makeNode(nodes, x, y, type, owner, units);
   mk(110, H / 2, 'base', 0, 20);
   mk(W - 110, H / 2, 'base', 1, 20);
   mk(W / 2, H / 2, 'tower', -1, 30);
+  terrain.push(...genTerrain(nodes.slice(0, 2), true, [nodes[2]]));   // симметрично, чтобы было честно
 
   let pairs = 0, tries = 0;
   while (pairs < 7 && tries++ < 8000) {
@@ -832,6 +889,7 @@ function genDuelMap() {
     const mx = W - x, my = H - y;
     if (nodes.some(n => Math.hypot(n.x - x, n.y - y) < 115)) continue;
     if (Math.hypot(mx - x, my - y) < 115) continue;
+    if (onTerrain(terrain, x, y) || onTerrain(terrain, mx, my)) continue;
     const distBase = Math.hypot(x - 110, y - H / 2);
     const garrison = Math.round(4 + distBase / 45 + Math.random() * 5);
     mk(x, y, 'tower', -1, garrison);
@@ -849,7 +907,7 @@ const baseSpots = players => ({
   3: [[110, H / 2], [W - 140, 125], [W - 140, H - 110]],
   4: [[130, 125], [W - 130, H - 110], [W - 130, 125], [130, H - 110]],
 })[players];
-function genArenaMap(players, towerCount, enemyBonus) {
+function genArenaMap(players, towerCount, enemyBonus, terrain) {
   const nodes = [];
   const rnd = (a, b) => a + Math.random() * (b - a);
   const flipY = Math.random() < 0.5;
@@ -860,8 +918,9 @@ function genArenaMap(players, towerCount, enemyBonus) {
       'base', p, p === 0 ? 20 : 20 + enemyBonus);
   });
   const bases = nodes.slice();
+  terrain.push(...genTerrain(bases, false));
   const minD = Math.min(125, Math.max(88, Math.sqrt(W * H / (towerCount + players)) * 0.6));
-  const free = (x, y, d) => nodes.every(n => Math.hypot(n.x - x, n.y - y) >= (n.type === 'base' ? d + 25 : d));
+  const free = (x, y, d) => !onTerrain(terrain, x, y) && nodes.every(n => Math.hypot(n.x - x, n.y - y) >= (n.type === 'base' ? d + 25 : d));
   const garrisonAt = (x, y) => {
     const near = Math.min(...bases.map(b => Math.hypot(b.x - x, b.y - y)));
     return Math.round(4 + near / 40 + Math.random() * 6);
@@ -887,7 +946,8 @@ function genArenaMap(players, towerCount, enemyBonus) {
 // cfg: { duel: true } для сетевой игры или { players, towers, bonus, diffs } для игры с ботами
 function newGame(cfg) {
   const players = cfg.duel ? 2 : cfg.players;
-  const nodes = cfg.duel ? genDuelMap() : genArenaMap(players, cfg.towers, cfg.bonus || 0);
+  const terrain = [];
+  const nodes = cfg.duel ? genDuelMap(terrain) : genArenaMap(players, cfg.towers, cfg.bonus || 0, terrain);
   const bots = [], prodMul = Array(players).fill(1);
   if (!cfg.duel) for (let p = 1; p < players; p++) {
     const D = DIFFS[cfg.diffs[p - 1]];
@@ -896,10 +956,10 @@ function newGame(cfg) {
     nodes[p].units = Math.max(5, nodes[p].units + D.startBonus);
     nodes[p].def = D.baseDef || 0;
   }
-  placeSpecial(nodes, !!cfg.duel);
+  placeSpecial(nodes, !!cfg.duel, terrain);
   placeBoosters(nodes, !!cfg.duel);
   return {
-    nodes, units: [], nextId: 1, countdown: 3, over: null, players, alive: Array(players).fill(true), bots,
+    nodes, terrain, units: [], nextId: 1, countdown: 3, over: null, players, alive: Array(players).fill(true), bots,
     time: 0, boostUntil: Array(players).fill(0), towerCnt: Array(players).fill(0), prodMul,
     buffs: Array.from({ length: players }, () => ({})),   // до какого g.time действует каждый бустер
     abil: Array.from({ length: players }, () => abilStart()),   // с какого g.time готова каждая способность
@@ -1143,7 +1203,7 @@ function step(g, dt) {
     * (hasSpecial(g, p, 'beacon') ? BEACON_SPEED : 1));
   for (const u of g.units) {
     if (u.delay > 0) { u.delay -= dt; continue; }
-    const s = speedOf[u.owner];
+    const s = speedOf[u.owner] * terrainMul(g, u.x, u.y);    // болото и лес замедляют
     const t = g.nodes[u.target];
     const dx = t.x - u.x, dy = t.y - u.y, d = Math.hypot(dx, dy);
     if (d <= t.r * 0.7 + s) { arrive(g, u, t); u.dead = true; continue; }
@@ -1319,10 +1379,11 @@ function botStep(g, dt, bot) {
     for (const n of cand) {
       used.push(n);
       power += Math.floor(n.units);
-      if (power >= attackNeed(g, t, dist(n, t), power, used.length) * D.margin) { ok = true; break; }
+      if (power >= attackNeed(g, t, dist(n, t) * travelFactor(g, n, t), power, used.length) * D.margin) { ok = true; break; }
     }
     if (!ok) continue;
-    const score = -attackNeed(g, t, dist(used[0], t), power, used.length) - dist(used[0], t) * 0.05
+    const d0 = dist(used[0], t) * travelFactor(g, used[0], t);   // через болото путь «длиннее»
+    const score = -attackNeed(g, t, d0, power, used.length) - d0 * 0.05
       + (t.type === 'base' ? 50 : 0) + (isEnemy(t.owner) ? 6 : 0) + (t.booster >= 0 ? 15 : 0) + (t.special >= 0 ? 20 : 0)
       + (t.owner === 0 ? D.humanBonus : isEnemy(t.owner) ? D.botPenalty : 0);
     if (score > bestScore) { bestScore = score; best = t; bestSrc = used; }
@@ -1494,6 +1555,7 @@ function onGuestData(d) {
     H = +d.h || 720; resize();                     // карта той же формы, что у хоста
     game = {
       nodes: d.nodes.map((n, i) => ({ id: i, x: n[0], y: n[1], r: n[2], type: n[3] ? 'base' : 'tower', owner: -1, units: 0, prod: 0, def: 0, route: -1, route2: -1, booster: -1, frozen: 0, style: n[4] || 0, special: n[5] == null ? -1 : +n[5] })),
+      terrain: Array.isArray(d.terrain) ? d.terrain : [],
       units: [], countdown: 3, over: null, players: 2, alive: [true, true], bots: [],
       time: 0, boostUntil: [0, 0], buffs: [{}, {}],   // у гостя: остаток секунд ускорения и бустеров (из снимка)
       abil: [abilStart(), abilStart()],               // и остаток перезарядки способностей
@@ -1630,7 +1692,7 @@ function startMatch() {
   resize();
   fx = []; netEvents = []; selected.clear();
   if (mode === 'host' && conn) {
-    conn.send({ t: 'init', h: H, nodes: game.nodes.map(n => [n.x, n.y, n.r, n.type === 'base' ? 1 : 0, n.style, n.special]) });
+    conn.send({ t: 'init', h: H, terrain: game.terrain, nodes: game.nodes.map(n => [n.x, n.y, n.r, n.type === 'base' ? 1 : 0, n.style, n.special]) });
   }
   enterGameUI();
 }
@@ -2006,7 +2068,12 @@ canvas.addEventListener('pointerdown', e => {
   if (!n) {
     const r = routeAt(p, touch ? 20 : 10);
     if (r) cmdUnroute([r.id], r.to);
-    else selected.clear();
+    else {
+      // касание пятна ландшафта (когда ничего не выбрано) — подсказка, что это
+      const z = touch && !selected.size ? terrainAt(game, p.x, p.y) : null;
+      if (z) terrainTip = { z, x: p.x, y: p.y, until: performance.now() + 2500 };
+      selected.clear();
+    }
     return;
   }
   const own = n.owner === me;
@@ -2146,9 +2213,9 @@ function frame(now) {
   if (mode === 'guest' && game.countdown <= 0 && game.over === null) {
     const s = CFG.speed * dt;
     for (const u of game.units) {
-      const t = game.nodes[u.target];
+      const t = game.nodes[u.target], su = s * terrainMul(game, u.x, u.y);
       const dx = t.x - u.x, dy = t.y - u.y, d = Math.hypot(dx, dy);
-      if (d > t.r * 0.7 + s) { u.x += dx / d * s; u.y += dy / d * s; }
+      if (d > t.r * 0.7 + su) { u.x += dx / d * su; u.y += dy / d * su; }
     }
   }
 
@@ -2156,6 +2223,7 @@ function frame(now) {
 
   ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * offX, dpr * offY);
   drawBoard();
+  drawTerrain(now / 1000);
   drawRanges();
   drawRoutes(now / 1000);
   drawOrders();
@@ -2165,10 +2233,104 @@ function frame(now) {
   drawAbilAim(now / 1000);
   drawRouteHover();
   drawBoosterTip(now);
+  drawTerrainTip(now);
   drawCountdown();
   updateHud();
   updatePanel();
   updateAbilBar();
+}
+
+// ---------- Ландшафт: болото (вода, кочки, камыш) и лес (кроны деревьев сверху) ----------
+function seeded(seed) {                      // простой генератор случайных чисел с зерном — узор не «дрожит»
+  let s = seed >>> 0;
+  return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function zonePath(z, grow = 0) {
+  ctx.beginPath();
+  for (let i = 0; i <= 48; i++) {
+    const a = i / 48 * Math.PI * 2, r = zoneR(z, a) + grow;
+    const px = X(z.x + Math.cos(a) * r), py = z.y + Math.sin(a) * r;
+    if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+  }
+  ctx.closePath();
+}
+// Украшения пятна считаются один раз (в координатах карты)
+function zoneDeco(z) {
+  if (z._deco) return z._deco;
+  const rnd = seeded(z.x * 7919 + z.y * 104729 + z.r);
+  const inside = (x, y, pad) => { const d = Math.hypot(x - z.x, y - z.y); return d < zoneR(z, Math.atan2(y - z.y, x - z.x)) - pad; };
+  const pts = (count, pad) => {
+    const out = [];
+    for (let i = 0, tries = 0; i < count && tries < count * 20; tries++) {
+      const x = z.x + (rnd() * 2 - 1) * z.r * 1.2, y = z.y + (rnd() * 2 - 1) * z.r * 1.2;
+      if (inside(x, y, pad)) { out.push([x, y, rnd()]); i++; }
+    }
+    return out;
+  };
+  const area = z.r * z.r;
+  z._deco = TERRAIN[z.k].key === 'swamp'
+    ? { ponds: pts(Math.round(area / 1400), 14), reeds: pts(Math.round(area / 260), 6) }
+    : { trees: pts(Math.round(area / 150), 7).sort((a, b) => a[1] - b[1]) };
+  return z._deco;
+}
+function drawTerrain(t) {
+  if (!game.terrain) return;
+  for (const z of game.terrain) {
+    const key = TERRAIN[z.k].key, deco = zoneDeco(z), x0 = X(z.x);
+    // мягкая тень-кромка и само пятно
+    zonePath(z, 5);
+    ctx.fillStyle = key === 'swamp' ? 'rgba(40,90,78,0.18)' : 'rgba(30,70,40,0.2)'; ctx.fill();
+    zonePath(z);
+    const gr = ctx.createRadialGradient(x0, z.y, z.r * 0.1, x0, z.y, z.r * 1.2);
+    if (key === 'swamp') { gr.addColorStop(0, '#1d3f39'); gr.addColorStop(1, '#152c29'); }
+    else { gr.addColorStop(0, '#173a24'); gr.addColorStop(1, '#10261a'); }
+    ctx.fillStyle = gr; ctx.fill();
+    ctx.strokeStyle = key === 'swamp' ? '#2f6356' : '#28573a'; ctx.lineWidth = 2; ctx.stroke();
+    if (key === 'swamp') {
+      for (const [px, py, k] of deco.ponds) {           // лужи с бликом
+        const rx = 9 + k * 9, ry = rx * 0.55, x = X(px);
+        ctx.beginPath(); ctx.ellipse(x, py, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#244f58'; ctx.fill();
+        ctx.beginPath(); ctx.ellipse(x - rx * 0.25, py - ry * 0.2, rx * 0.45, ry * 0.25, 0, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(150,220,230,${0.18 + 0.1 * Math.sin(t * 1.5 + k * 9)})`; ctx.fill();
+      }
+      ctx.strokeStyle = '#5d8c55'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (const [px, py, k] of deco.reeds) {           // пучки камыша
+        const x = X(px), sway = Math.sin(t * 1.2 + k * 20) * 1.2;
+        ctx.moveTo(x, py); ctx.lineTo(x - 2 + sway, py - 7 - k * 3);
+        ctx.moveTo(x, py); ctx.lineTo(x + 2 + sway, py - 6 - k * 3);
+      }
+      ctx.stroke(); ctx.lineCap = 'butt';
+    } else {
+      for (const [px, py, k] of deco.trees) {           // кроны деревьев
+        const x = X(px), r = 6 + k * 5;
+        circle(x + 1.5, py + 2, r); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fill();
+        circle(x, py, r); ctx.fillStyle = k < 0.5 ? '#1f5130' : '#245c36'; ctx.fill();
+        circle(x - r * 0.3, py - r * 0.3, r * 0.5); ctx.fillStyle = 'rgba(120,190,110,0.22)'; ctx.fill();
+      }
+    }
+  }
+}
+// Подсказка о ландшафте: мышь — наведение на пустое место в пятне, палец — касание
+let terrainTip = null;                       // { z, x, y, until } — после касания
+function drawTerrainTip(now) {
+  let z = null, px = 0, py = 0;
+  if (terrainTip && now < terrainTip.until) ({ z, x: px, y: py } = terrainTip);
+  else if (!IS_TOUCH && hoverId < 0 && !hoverRoute && !drag && !abilAim && !selected.size && playing() && mouse.x > -100) {
+    z = terrainAt(game, mouse.x, mouse.y); px = mouse.x; py = mouse.y;
+  }
+  if (!z) return;
+  const tr = TERRAIN[z.k], f = fontPx(13, 10.5);
+  const text = `${tr.icon} ${tr.name}: ${terrainText(tr)}`;
+  ctx.font = `700 ${f}px Rubik, sans-serif`;
+  const w = ctx.measureText(text).width + f * 1.2, h = f * 1.8;
+  const x = Math.min(W - w / 2 - 4, Math.max(w / 2 + 4, X(px))), y = Math.max(h / 2 + 4, py - 22);
+  ctx.fillStyle = '#141b2df2';
+  ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, 7); ctx.fill();
+  ctx.strokeStyle = tr.key === 'swamp' ? '#5fb3a0' : '#6fbf7a'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#e6ebf5'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y + 1);
 }
 
 // Выбор цели для способности: круг Артудара под курсором, подсветка подходящих зданий
