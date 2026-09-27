@@ -123,10 +123,11 @@
   .ov-stars .best { color: var(--gold); font-size: 13px; margin-top: 4px; }
   body.compact .ov-stars { margin: -4px 0 12px; font-size: 13px; }
   body.compact .ov-stars .big { font-size: 30px; }
-  /* ---------- Суперспособности: кнопки внизу по центру ---------- */
+  /* ---------- Суперспособности: колонка кнопок справа, по центру высоты поля ---------- */
   #abilBar {
-    position: fixed; left: 50%; bottom: calc(10px + var(--safe-b)); transform: translateX(-50%); z-index: 5;
-    display: flex; gap: 14px;
+    position: fixed; right: calc(10px + var(--safe-r)); top: calc(50% + (var(--safe-t) - var(--safe-b)) / 2);
+    transform: translateY(-50%); z-index: 5;
+    display: flex; flex-direction: column; gap: 20px;
   }
   .ab-btn {
     position: relative; width: 46px; height: 46px; padding: 0; border-radius: 50%;
@@ -150,7 +151,7 @@
   .ab-btn kbd { position: absolute; top: -7px; left: -7px; min-width: 16px; padding: 0 3px; font-size: 10px; line-height: 15px; }
   .ab-btn.off { opacity: .5; }
   .ab-btn.aim { box-shadow: 0 0 0 3px var(--ab), 0 0 18px var(--ab); }
-  body.compact #abilBar { bottom: calc(8px + var(--safe-b)); gap: 12px; }
+  body.compact #abilBar { right: calc(6px + var(--safe-r)); gap: 16px; }
   body.compact .ab-btn { width: 38px; height: 38px; font-size: 18px; }
   body.compact .ab-btn .cdv { font-size: 14px; }
   .chip.out { opacity: .45; text-decoration: line-through; }
@@ -2040,12 +2041,15 @@ let safe = { t: 0, r: 0, b: 0, l: 0 };       // безопасные отсту�
 const viewW = () => canvas.clientWidth || document.documentElement.clientWidth || innerWidth;
 const viewH = () => canvas.clientHeight || document.documentElement.clientHeight || innerHeight;
 let lastViewW = 0, lastViewH = 0;
-function layoutBox() {
+// Справа — колонка кнопок способностей (abil), поле центрируется в оставшемся месте.
+// portrait: телефон пока вертикально — считаем, каким будет экран после поворота (для формы карты).
+function layoutBox(portrait = false) {
   let vw = viewW() - safe.l - safe.r, vh = viewH() - safe.t - safe.b;
+  if (portrait) [vw, vh] = [vh, vw];
   const isCompact = vh < 600;
   const top = hudInBand ? 4 : isCompact ? 44 : 60;
-  const bottom = isCompact ? 52 : 66, side = isCompact ? 8 : 16;   // снизу — место под кнопки способностей
-  return { vw, vh, isCompact, top, bottom, side, availW: vw - side * 2, availH: vh - top - bottom };
+  const bottom = isCompact ? 6 : 16, side = isCompact ? 8 : 16, abil = isCompact ? 50 : 66;
+  return { vw, vh, isCompact, top, bottom, side, abil, availW: vw - side * 2 - abil, availH: vh - top - bottom };
 }
 function resize() {
   dpr = Math.min(2, window.devicePixelRatio || 1);   // ×3-экраны рисуем в ×2: разницы не видно, а быстрее
@@ -2056,15 +2060,14 @@ function resize() {
   compact = L.isCompact;
   document.body.classList.toggle('compact', compact);
   scale = Math.min(L.availW / W, L.availH / H);
-  offX = safe.l + (L.vw - W * scale) / 2;
+  offX = safe.l + L.side + (L.availW - W * scale) / 2;
   offY = safe.t + L.top + (L.availH - H * scale) / 2;
 }
 // Высота карты под форму экрана: на широком экране карта шире и ниже, поэтому всё крупнее
 function worldHeightForScreen() {
-  const L = layoutBox();
-  // телефон пока вертикально (игра попросит повернуть) — считаем карту под горизонтальный экран
-  const ratio = L.vw < L.vh ? L.availW / L.availH : L.availH / L.availW;
-  return Math.round(Math.min(720, Math.max(470, W * ratio)));
+  // телефон пока вертикально (игра попросит повернуть) — считаем под экран после поворота
+  const L = layoutBox(viewW() < viewH());
+  return Math.round(Math.min(720, Math.max(440, W * L.availH / L.availW)));
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 250));
