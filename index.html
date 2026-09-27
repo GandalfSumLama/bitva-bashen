@@ -2269,46 +2269,60 @@ function zoneDeco(z) {
   };
   const area = z.r * z.r;
   z._deco = TERRAIN[z.k].key === 'swamp'
-    ? { ponds: pts(Math.round(area / 1400), 14), reeds: pts(Math.round(area / 260), 6) }
-    : { trees: pts(Math.round(area / 150), 7).sort((a, b) => a[1] - b[1]) };
+    ? { ponds: pts(Math.round(area / 1300), 16), reeds: pts(Math.round(area / 420), 8) }
+    : { trees: pts(Math.round(area / 230), 10).sort((a, b) => a[1] - b[1]) };
   return z._deco;
+}
+// Ёлочка в той же перспективе, что и башни: тень на земле, ствол, два яруса хвои со светлой стороной
+function drawPine(x, y, h, k) {
+  const w = h * 0.52;
+  ctx.beginPath(); ctx.ellipse(x + h * 0.12, y + 1, w * 0.62, w * 0.22, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fill();
+  ctx.fillStyle = '#2a2320'; ctx.fillRect(x - h * 0.05, y - h * 0.16, h * 0.1, h * 0.18);
+  const dark = k < 0.5 ? '#2a3d33' : '#2f4039', light = k < 0.5 ? '#3f5849' : '#455c52';
+  for (const [base, top, ww] of [[y - h * 0.12, y - h * 0.72, w], [y - h * 0.45, y - h, w * 0.72]]) {
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x + ww / 2, base); ctx.lineTo(x - ww / 2, base); ctx.closePath();
+    ctx.fillStyle = dark; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x - ww / 2, base); ctx.lineTo(x - ww * 0.08, base); ctx.closePath();
+    ctx.fillStyle = light; ctx.fill();
+  }
 }
 function drawTerrain(t) {
   if (!game.terrain) return;
   for (const z of game.terrain) {
     const key = TERRAIN[z.k].key, deco = zoneDeco(z), x0 = X(z.x);
-    // мягкая тень-кромка и само пятно
-    zonePath(z, 5);
-    ctx.fillStyle = key === 'swamp' ? 'rgba(40,90,78,0.18)' : 'rgba(30,70,40,0.2)'; ctx.fill();
-    zonePath(z);
-    const gr = ctx.createRadialGradient(x0, z.y, z.r * 0.1, x0, z.y, z.r * 1.2);
-    if (key === 'swamp') { gr.addColorStop(0, '#1d3f39'); gr.addColorStop(1, '#152c29'); }
-    else { gr.addColorStop(0, '#173a24'); gr.addColorStop(1, '#10261a'); }
-    ctx.fillStyle = gr; ctx.fill();
-    ctx.strokeStyle = key === 'swamp' ? '#2f6356' : '#28573a'; ctx.lineWidth = 2; ctx.stroke();
+    // мягкий край: несколько слоёв, к середине плотнее — пятно «впитывается» в карту, без резкой обводки
+    const tone = key === 'swamp' ? [28, 58, 62] : [30, 50, 42];
+    for (const [grow, a] of [[8, 0.14], [3, 0.26], [-3, 0.4], [-10, 0.4]]) {
+      zonePath(z, grow);
+      ctx.fillStyle = `rgba(${tone[0]},${tone[1]},${tone[2]},${a})`; ctx.fill();
+    }
     if (key === 'swamp') {
-      for (const [px, py, k] of deco.ponds) {           // лужи с бликом
-        const rx = 9 + k * 9, ry = rx * 0.55, x = X(px);
-        ctx.beginPath(); ctx.ellipse(x, py, rx, ry, 0, 0, Math.PI * 2);
-        ctx.fillStyle = '#244f58'; ctx.fill();
-        ctx.beginPath(); ctx.ellipse(x - rx * 0.25, py - ry * 0.2, rx * 0.45, ry * 0.25, 0, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(150,220,230,${0.18 + 0.1 * Math.sin(t * 1.5 + k * 9)})`; ctx.fill();
-      }
-      ctx.strokeStyle = '#5d8c55'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+      // мелкая рябь-штриховка
+      ctx.save(); zonePath(z, -4); ctx.clip();
+      ctx.strokeStyle = 'rgba(130,175,180,0.1)'; ctx.lineWidth = 1;
       ctx.beginPath();
-      for (const [px, py, k] of deco.reeds) {           // пучки камыша
-        const x = X(px), sway = Math.sin(t * 1.2 + k * 20) * 1.2;
-        ctx.moveTo(x, py); ctx.lineTo(x - 2 + sway, py - 7 - k * 3);
-        ctx.moveTo(x, py); ctx.lineTo(x + 2 + sway, py - 6 - k * 3);
+      for (let yy = z.y - z.r * 1.3; yy < z.y + z.r * 1.3; yy += 7) { ctx.moveTo(x0 - z.r * 1.3, yy); ctx.lineTo(x0 + z.r * 1.3, yy); }
+      ctx.stroke(); ctx.restore();
+      for (const [px, py, k] of deco.ponds) {           // тёмные лужи с тусклым бликом
+        const rx = 8 + k * 8, ry = rx * 0.5, x = X(px);
+        ctx.beginPath(); ctx.ellipse(x, py, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(16,34,44,0.9)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(90,130,140,0.25)'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(x - rx * 0.3, py - ry * 0.25, rx * 0.35, ry * 0.18, 0, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(170,205,215,${0.1 + 0.06 * Math.sin(t * 1.3 + k * 9)})`; ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(135,155,120,0.7)'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (const [px, py, k] of deco.reeds) {           // редкие пучки камыша
+        const x = X(px), sway = Math.sin(t * 1.1 + k * 20) * 1;
+        ctx.moveTo(x, py); ctx.lineTo(x - 2 + sway, py - 6 - k * 3);
+        ctx.moveTo(x, py); ctx.lineTo(x + sway * 0.5, py - 8 - k * 3);
+        ctx.moveTo(x, py); ctx.lineTo(x + 2 + sway, py - 5 - k * 2);
       }
       ctx.stroke(); ctx.lineCap = 'butt';
     } else {
-      for (const [px, py, k] of deco.trees) {           // кроны деревьев
-        const x = X(px), r = 6 + k * 5;
-        circle(x + 1.5, py + 2, r); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fill();
-        circle(x, py, r); ctx.fillStyle = k < 0.5 ? '#1f5130' : '#245c36'; ctx.fill();
-        circle(x - r * 0.3, py - r * 0.3, r * 0.5); ctx.fillStyle = 'rgba(120,190,110,0.22)'; ctx.fill();
-      }
+      for (const [px, py, k] of deco.trees) drawPine(X(px), py, 13 + k * 7, k);   // ёлочки, дальние — раньше
     }
   }
 }
