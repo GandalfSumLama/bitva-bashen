@@ -1697,6 +1697,8 @@ function startMatch() {
     const towers = lp.towers + Math.floor(Math.random() * 4) - 1;        // каждый раз немного по-разному
     H = worldHeightForScreen();                    // карта под форму экрана
     game = newGame({ players: lp.enemies + 1, towers, bonus: lp.bonus, diffs: Array(lp.enemies).fill(lp.diff) });
+    // телефон ещё вертикально: бой ждёт поворота, а после него карта создаётся заново — точно под экран
+    if (isPortraitPhone()) game.waitRotate = true;
   } else {
     H = worldHeightForScreen();                    // форму карты выбирает хост и передаёт гостю
     game = newGame({ duel: true });
@@ -2043,9 +2045,16 @@ const viewH = () => canvas.clientHeight || document.documentElement.clientHeight
 let lastViewW = 0, lastViewH = 0;
 // Справа — колонка кнопок способностей (abil), поле центрируется в оставшемся месте.
 // portrait: телефон пока вертикально — считаем, каким будет экран после поворота (для формы карты).
+let tgInsets = null;                         // отступы Telegram как есть: { a: системные, c: полоса кнопок Telegram }
+const isPortraitPhone = () => viewW() < viewH() && viewW() <= 700;   // тот же случай, когда просим повернуть
 function layoutBox(portrait = false) {
   let vw = viewW() - safe.l - safe.r, vh = viewH() - safe.t - safe.b;
-  if (portrait) [vw, vh] = [vh, vw];
+  if (portrait) {
+    // после поворота вырез камеры уходит вбок, полоса кнопок Telegram остаётся сверху, внизу — полоска жестов
+    const a = (tgInsets && tgInsets.a) || {}, c = (tgInsets && tgInsets.c) || {};
+    vw = viewH() - (a.top || 0) * 2;
+    vh = viewW() - (c.top || 0) - Math.min(a.bottom || 0, 21);
+  }
   const isCompact = vh < 600;
   const top = hudInBand ? 4 : isCompact ? 44 : 60;
   const bottom = isCompact ? 6 : 16, side = isCompact ? 8 : 16, abil = isCompact ? 50 : 66;
@@ -2065,9 +2074,10 @@ function resize() {
 }
 // Высота карты под форму экрана: на широком экране карта шире и ниже, поэтому всё крупнее
 function worldHeightForScreen() {
-  // телефон пока вертикально (игра попросит повернуть) — считаем под экран после поворота
-  const L = layoutBox(viewW() < viewH());
-  return Math.round(Math.min(720, Math.max(440, W * L.availH / L.availW)));
+  // телефон пока вертикально (игра попросит повернуть) — считаем под экран после поворота;
+  // планшет вертикально повернуть не просим — ему как есть
+  const L = layoutBox(isPortraitPhone());
+  return Math.round(Math.min(820, Math.max(440, W * L.availH / L.availW)));
 }
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 250));
@@ -2270,6 +2280,12 @@ function frame(now) {
   syncTgBack();
   // размер окна поменялся без события resize (поворот на iPhone и т.п.) — пересчитываем
   if (viewW() !== lastViewW || viewH() !== lastViewH) resize();
+  // игра с ботами ждала поворота телефона: экран стал горизонтальным и отступы успели обновиться — карта заново
+  if (game && game.waitRotate && mode === 'solo') {
+    if (isPortraitPhone()) game.rotSeen = 0;
+    else if (!game.rotSeen) game.rotSeen = now;
+    else if (now - game.rotSeen > 350) startMatch();
+  }
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#0b0f19';
@@ -3478,7 +3494,7 @@ function hostTick() {
   const now = performance.now();
   let dt = Math.min(0.25, (now - lastTick) / 1000);
   lastTick = now;
-  if (paused()) return;                  // в тренировке игра стоит, пока открыт диалог выхода
+  if (paused() || game.waitRotate) return;   // в тренировке игра стоит, пока открыт диалог выхода или ждём поворота
   while (dt > 0) {
     const s = Math.min(dt, 1 / 30);
     step(game, s);
@@ -3626,6 +3642,7 @@ function initTelegram() {
   // отступы под вырез камеры и кнопки Telegram поверх игры
   const applySafe = () => {
     const a = tg.safeAreaInset || {}, c = tg.contentSafeAreaInset || {};
+    tgInsets = { a, c };
     safe = {
       t: (a.top || 0) + (c.top || 0), r: (a.right || 0) + (c.right || 0),
       b: (a.bottom || 0) + (c.bottom || 0), l: (a.left || 0) + (c.left || 0),
