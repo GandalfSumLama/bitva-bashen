@@ -487,7 +487,7 @@ const NETWORK_ENABLED = TG_LAUNCH;
 // Ссылка на игру в Telegram: приглашение в комнату — ?startapp=КОД (друг сразу попадает в комнату)
 // Главное Mini App бота (галерея Pleasure Union): t.me/бот?startapp=… — отдельного «/play» у бота нет
 const TG_APP_LINK = 'https://t.me/pleasure_union_bot';
-const PEER_PREFIX = 'bitva-bashen-v2-';   // v2 — со способностями (старая версия с новой не соединится)
+const PEER_PREFIX = 'bitva-bashen-v3-';   // v3 — способности и особая башня (старая версия с новой не соединится)
 const CODE_LEN = 4;      // код комнаты — 4 цифры, его легко продиктовать и ввести
 
 const COL = {
@@ -571,6 +571,26 @@ function abilText(a) {
   return `${a.units} бойцов высаживаются прямо у выбранной башни: у чужой — атакуют её, у своей — усиливают`;
 }
 
+// Особая башня: в каждой игре одна, тип случайный. Стоит в самом честном месте карты —
+// примерно на одном расстоянии от всех главных зданий. Её свойство действует, пока башня ваша.
+const SPECIALS = [
+  { key: 'beacon', icon: '🔭', name: 'Маяк',     color: '#6ee7ff' },
+  { key: 'mine',   icon: '⛏️', name: 'Шахта',    color: '#ffc94d' },
+  { key: 'fort',   icon: '🏰', name: 'Крепость', color: '#a5b4fc' },
+  { key: 'hq',     icon: '📡', name: 'Штаб',     color: '#ff8a3d' },
+];
+const SPECIAL_GARRISON = 25;           // гарнизон особой башни (кроме Крепости)
+const BEACON_SPEED = 1.25;             // Маяк: во сколько раз быстрее бегут ваши бойцы
+const MINE_DISCOUNT = 30;              // Шахта: на сколько % дешевле улучшения во всех ваших башнях
+const FORT_LEVEL = 3, FORT_GARRISON = 10;   // Крепость: уровень форта и гарнизон на старте (×3 прочности = как 30)
+const HQ_RECHARGE = 2;                 // Штаб: во сколько раз быстрее перезаряжаются ваши способности
+function specialText(s) {
+  if (s.key === 'beacon') return `ваши бойцы бегут на ${Math.round((BEACON_SPEED - 1) * 100)}% быстрее`;
+  if (s.key === 'mine') return `улучшения во всех ваших башнях на ${MINE_DISCOUNT}% дешевле`;
+  if (s.key === 'fort') return `сама башня — форт ${FORT_LEVEL}-го уровня, при захвате не теряет уровни`;
+  return `ваши суперспособности перезаряжаются в ${HQ_RECHARGE} раза быстрее`;
+}
+
 // Звёзды за уровень: ★ — победа, ★ — победа быстрее контрольного времени, ★ — ни одна ваша башня не захвачена врагом.
 // Контрольное время = основа + за каждого соперника + за каждую башню (с).
 const STAR_TIME_BASE = 60, STAR_TIME_PER_ENEMY = 60, STAR_TIME_PER_TOWER = 5;
@@ -615,6 +635,11 @@ const RULES_HTML = `
     <li>Главное здание само производит войска. Серые башни нейтральные: в них сидит гарнизон, который нужно перебить.</li>
     <li><b>Бустеры</b> спрятаны в некоторых серых башнях, над ними золотой <b>?</b>. Бустер получает тот, кто первым захватит башню:
       ${BOOSTERS.map(b => `<br>${b.icon} <b>${b.name}</b>${b.secs ? ` (${b.secs} с)` : ''}: ${b.text}.`).join('')}</li>
+    <li><b>Особая башня:</b> в каждой игре на карте одна особая башня (над ней значок, вокруг золотое свечение).
+      Она стоит примерно на одинаковом расстоянии от всех главных зданий, и её тип каждый раз случайный.
+      Пока башня ваша, действует её свойство:
+      ${SPECIALS.map(s => `<br>${s.icon} <b>${s.name}</b>: ${specialText(s)}.`).join('')}
+      <br>Гарнизон у особой башни сильнее обычного, а захватить её могут и соперники.</li>
     <li><b>Суперспособности</b> — три кнопки внизу экрана. Их оплачивают войсками из <b>главного здания</b>,
       после применения способность перезаряжается. Первый раз их можно применить через ${ABIL_FIRST} с после начала боя.
       ${ABILITIES.map((a, i) => `<br>${a.icon} <b>${a.name}</b>${IS_TOUCH ? '' : ` (<kbd>${i + 1}</kbd>)`}: ${abilText(a)}. Цена ${a.cost} войск, перезарядка ${a.cd} с.`).join('')}
@@ -700,9 +725,9 @@ function placeBoosters(nodes, duel) {
     }
     return;
   }
-  // не кладём бустеры в стартовые башни у самых баз, чтобы никому не везло с первой минуты
+  // не кладём бустеры в стартовые башни у самых баз, чтобы никому не везло с первой минуты (и в особую башню)
   const bases = nodes.filter(n => n.type === 'base');
-  const towers = nodes.filter(n => n.type === 'tower' && bases.every(b => Math.hypot(b.x - n.x, b.y - n.y) > 240));
+  const towers = nodes.filter(n => n.type === 'tower' && n.special < 0 && bases.every(b => Math.hypot(b.x - n.x, b.y - n.y) > 240));
   for (const t of towers) if (Math.random() < BOOSTER_CHANCE) t.booster = pick();
   const free = towers.filter(t => t.booster < 0).sort(() => Math.random() - 0.5);
   while (towers.length - free.length < 2 && free.length) free.pop().booster = pick();
@@ -725,12 +750,69 @@ function onBooster(p, idx) {
 
 function canBranch(n, b) { return n.type === 'base' || (b === 'prod' ? n.def === 0 : n.prod === 0); }
 
+// Особая башня: есть ли у игрока p особая башня с таким свойством
+function hasSpecial(g, p, key) {
+  const idx = SPECIALS.findIndex(s => s.key === key);
+  return p >= 0 && g.nodes.some(n => n.special === idx && n.owner === p);
+}
+// Цена улучшения до уровня lv+1 для игрока p (Шахта делает дешевле)
+function upCost(g, p, lv) {
+  return hasSpecial(g, p, 'mine') ? Math.round(CFG.cost[lv] * (1 - MINE_DISCOUNT / 100)) : CFG.cost[lv];
+}
+// Ставим одну особую башню случайного типа. В дуэли — центральная башня (карта симметрична),
+// иначе — серая башня, которая меньше всего «ближе к кому-то»: разница между самым дальним
+// и самым ближним главным зданием минимальна.
+function placeSpecial(nodes, duel) {
+  const idx = Math.floor(Math.random() * SPECIALS.length);
+  let t;
+  if (duel) t = nodes[2];
+  else {
+    const bases = nodes.filter(n => n.type === 'base');
+    const cand = nodes.filter(n => n.type === 'tower' && bases.every(b => Math.hypot(b.x - n.x, b.y - n.y) > 240));
+    let bs = Infinity;
+    for (const n of cand.length ? cand : nodes.filter(n => n.type === 'tower')) {
+      const d = bases.map(b => Math.hypot(b.x - n.x, b.y - n.y));
+      const s = Math.max(...d) - Math.min(...d) + Math.random() * 20;
+      if (s < bs) { bs = s; t = n; }
+    }
+  }
+  if (!t) return;
+  if (!duel) {
+    // двигаем башню к самой честной точке карты (одинаково далеко от всех баз), насколько позволяют соседи
+    const bases = nodes.filter(n => n.type === 'base');
+    const spread = (x, y) => { const d = bases.map(b => Math.hypot(b.x - x, b.y - y)); return Math.max(...d) - Math.min(...d); };
+    let fx = t.x, fy = t.y, fs = Infinity;
+    for (let x = 120; x <= W - 120; x += 20) for (let y = 110; y <= H - 70; y += 20) {
+      const s = spread(x, y) + Math.random() * 6;
+      if (s < fs) { fs = s; fx = x; fy = y; }
+    }
+    for (let k = 1; k > 0.05; k -= 0.1) {
+      const x = t.x + (fx - t.x) * k, y = t.y + (fy - t.y) * k;
+      if (nodes.every(n => n === t || Math.hypot(n.x - x, n.y - y) >= (n.type === 'base' ? 110 : 85))) {
+        t.x = Math.round(x); t.y = Math.round(y);
+        break;
+      }
+    }
+  }
+  t.special = idx;
+  t.booster = -1;
+  if (SPECIALS[idx].key === 'fort') { t.def = FORT_LEVEL; t.units = FORT_GARRISON; }
+  else t.units = Math.max(t.units, SPECIAL_GARRISON);
+}
+function onSpecialCaptured(p, n) {
+  const s = SPECIALS[n.special];
+  if (!s) return;
+  if (p === me) toast(`${s.icon} ${s.name} ваш: ${specialText(s)}`, 3500);
+  else if (game && game.players > 1) toast(`${TEAM_NAME[p]} захватили: ${s.icon} ${s.name}`, 3000);
+}
+
 function makeNode(nodes, x, y, type, owner, units) {
   nodes.push({
     id: nodes.length, x: Math.round(x), y: Math.round(y), r: type === 'base' ? 34 : 24,
     type, owner, units, prod: 0, def: 0, cd: 0, route: -1, flowCd: 0, booster: -1,
     route2: -1, flowCd2: 0,                 // второй путь — только у главного здания
     frozen: 0,                              // до какого g.time заморожено («Заморозка»)
+    special: -1,                            // номер в SPECIALS, если это особая башня
     style: Math.floor(Math.random() * 6),   // какая из серых башен рисуется, пока башня нейтральная
   });
 }
@@ -814,6 +896,7 @@ function newGame(cfg) {
     nodes[p].units = Math.max(5, nodes[p].units + D.startBonus);
     nodes[p].def = D.baseDef || 0;
   }
+  placeSpecial(nodes, !!cfg.duel);
   placeBoosters(nodes, !!cfg.duel);
   return {
     nodes, units: [], nextId: 1, countdown: 3, over: null, players, alive: Array(players).fill(true), bots,
@@ -882,9 +965,9 @@ function upgrade(g, player, id, branch) {
   if (!n || n.owner !== player || g.over !== null) return false;
   if (branch !== 'prod' && branch !== 'def') return false;
   if (!canBranch(n, branch)) return false;
-  const lv = n[branch];
-  if (lv >= 3 || n.units < CFG.cost[lv]) return false;
-  n.units -= CFG.cost[lv];
+  const lv = n[branch], cost = lv < 3 ? upCost(g, player, lv) : 0;
+  if (lv >= 3 || n.units < cost) return false;
+  n.units -= cost;
   n[branch]++;
   return true;
 }
@@ -960,9 +1043,11 @@ function arrive(g, u, n) {
     n.cd = 0;
     n.frozen = 0;
     n.route = -1; n.route2 = -1;
-    if (n.prod > 0) n.prod--;
-    if (n.def > 0) n.def--;
+    const keep = n.special >= 0 && SPECIALS[n.special].key === 'fort';   // Крепость не теряет уровни
+    if (n.prod > 0 && !keep) n.prod--;
+    if (n.def > 0 && !keep) n.def--;
     emit([1, n.x, n.y, u.owner]);
+    if (n.special >= 0) { emit([5, n.id, u.owner]); onSpecialCaptured(u.owner, n); }
     if (u.owner === me && mode !== 'sim') tgHaptic('light');
     if (n.booster >= 0) grantBooster(g, u.owner, n);
   }
@@ -1050,7 +1135,12 @@ function step(g, dt) {
     }
   }
 
-  const speedOf = Array.from({ length: g.players }, (_, p) => CFG.speed * dt * (buff(g, p, 'speed') ? SPEED_MUL : 1));
+  // Штаб: способности перезаряжаются быстрее (срок готовности приближается)
+  for (let p = 0; p < g.players; p++) {
+    if (hasSpecial(g, p, 'hq')) for (const k in g.abil[p]) if (g.abil[p][k] > g.time) g.abil[p][k] -= dt * (HQ_RECHARGE - 1);
+  }
+  const speedOf = Array.from({ length: g.players }, (_, p) => CFG.speed * dt * (buff(g, p, 'speed') ? SPEED_MUL : 1)
+    * (hasSpecial(g, p, 'beacon') ? BEACON_SPEED : 1));
   for (const u of g.units) {
     if (u.delay > 0) { u.delay -= dt; continue; }
     const s = speedOf[u.owner];
@@ -1205,13 +1295,13 @@ function botStep(g, dt, bot) {
   if (Math.random() < D.upgrade) for (const n of mine) {
     let b = null;
     if (n.type === 'base') {
-      if (n.prod < 3 && n.units > CFG.cost[n.prod] + D.eco) b = 'prod';
-      else if (n.def < 2 && n.prod >= 2 && n.units > CFG.cost[n.def] + D.eco + 10) b = 'def';
+      if (n.prod < 3 && n.units > upCost(g, P, n.prod) + D.eco) b = 'prod';
+      else if (n.def < 2 && n.prod >= 2 && n.units > upCost(g, P, n.def) + D.eco + 10) b = 'def';
     } else if (n.prod === 0 && n.def === 0) {
-      if (n.units > CFG.cost[0] + 5) b = nearEnemyBase(n) ? 'def' : 'prod';
+      if (n.units > upCost(g, P, 0) + 5) b = nearEnemyBase(n) ? 'def' : 'prod';
     } else {
       const k = n.prod > 0 ? 'prod' : 'def';
-      if (n[k] < 3 && n.units > CFG.cost[n[k]] + 10 && Math.random() < 0.4) b = k;
+      if (n[k] < 3 && n.units > upCost(g, P, n[k]) + 10 && Math.random() < 0.4) b = k;
     }
     if (b && upgrade(g, P, n.id, b)) { if (--actions <= 0) return; break; }
   }
@@ -1233,7 +1323,7 @@ function botStep(g, dt, bot) {
     }
     if (!ok) continue;
     const score = -attackNeed(g, t, dist(used[0], t), power, used.length) - dist(used[0], t) * 0.05
-      + (t.type === 'base' ? 50 : 0) + (isEnemy(t.owner) ? 6 : 0) + (t.booster >= 0 ? 15 : 0)
+      + (t.type === 'base' ? 50 : 0) + (isEnemy(t.owner) ? 6 : 0) + (t.booster >= 0 ? 15 : 0) + (t.special >= 0 ? 20 : 0)
       + (t.owner === 0 ? D.humanBonus : isEnemy(t.owner) ? D.botPenalty : 0);
     if (score > bestScore) { bestScore = score; best = t; bestSrc = used; }
   }
@@ -1403,7 +1493,7 @@ function onGuestData(d) {
     mode = 'guest'; me = 1;
     H = +d.h || 720; resize();                     // карта той же формы, что у хоста
     game = {
-      nodes: d.nodes.map((n, i) => ({ id: i, x: n[0], y: n[1], r: n[2], type: n[3] ? 'base' : 'tower', owner: -1, units: 0, prod: 0, def: 0, route: -1, route2: -1, booster: -1, frozen: 0, style: n[4] || 0 })),
+      nodes: d.nodes.map((n, i) => ({ id: i, x: n[0], y: n[1], r: n[2], type: n[3] ? 'base' : 'tower', owner: -1, units: 0, prod: 0, def: 0, route: -1, route2: -1, booster: -1, frozen: 0, style: n[4] || 0, special: n[5] == null ? -1 : +n[5] })),
       units: [], countdown: 3, over: null, players: 2, alive: [true, true], bots: [],
       time: 0, boostUntil: [0, 0], buffs: [{}, {}],   // у гостя: остаток секунд ускорения и бустеров (из снимка)
       abil: [abilStart(), abilStart()],               // и остаток перезарядки способностей
@@ -1446,6 +1536,7 @@ function applySnapshot(s) {
     else fx.push({ a: ev, t: 0 });
     if (ev[0] === 3) onBooster(ev[3], ev[4]);
     if (ev[0] === 4) onAbility(ev[3], ev[4]);
+    if (ev[0] === 5 && g.nodes[ev[1]]) onSpecialCaptured(ev[2], g.nodes[ev[1]]);
   }
   if (s.ab) g.abil = s.ab;                 // остаток перезарядки способностей
   g.countdown = s.cd;
@@ -1539,7 +1630,7 @@ function startMatch() {
   resize();
   fx = []; netEvents = []; selected.clear();
   if (mode === 'host' && conn) {
-    conn.send({ t: 'init', h: H, nodes: game.nodes.map(n => [n.x, n.y, n.r, n.type === 'base' ? 1 : 0, n.style]) });
+    conn.send({ t: 'init', h: H, nodes: game.nodes.map(n => [n.x, n.y, n.r, n.type === 'base' ? 1 : 0, n.style, n.special]) });
   }
   enterGameUI();
 }
@@ -1729,7 +1820,7 @@ function cmdUpgrade(id, b) {
   if (!n || n.owner !== me) return;
   if (!canBranch(n, b)) { toast(n.def > 0 ? 'Это форт: казарму построить нельзя' : 'Это казарма: форт построить нельзя'); return; }
   if (n[b] >= 3) { toast('Максимальный уровень'); return; }
-  if (n.units < CFG.cost[n[b]]) { toast(`Нужно ${CFG.cost[n[b]]} войск в этой башне`); return; }
+  if (n.units < upCost(game, me, n[b])) { toast(`Нужно ${upCost(game, me, n[b])} войск в этой башне`); return; }
   if (mode === 'guest') conn?.open && conn.send({ t: 'up', id, b });
   else upgrade(game, me, id, b);
 }
@@ -1977,8 +2068,8 @@ canvas.addEventListener('pointerup', e => {
     else if (!pr.shift) { selected.clear(); selected.add(pr.from); }
   } else if (selected.size) {
     cmdRoute([...selected], pr.from);
-  } else if (game.nodes[pr.from].booster >= 0) {
-    nodeTip = { id: pr.from, until: performance.now() + 2800 };   // касание башни с «?» — подсказка
+  } else if (game.nodes[pr.from].booster >= 0 || game.nodes[pr.from].special >= 0) {
+    nodeTip = { id: pr.from, until: performance.now() + 2800 };   // касание башни с «?» или особой — подсказка
   }
 });
 
@@ -2218,10 +2309,13 @@ function drawBoosterTip(now) {
   let n = null;
   if (nodeTip && now < nodeTip.until) n = game.nodes[nodeTip.id];
   else if (hoverId >= 0 && !drag && !selected.size && playing()) n = game.nodes[hoverId];   // при выбранных башнях там подсказка пути
-  if (!n || n.booster < 0) return;
+  if (!n || (n.booster < 0 && n.special < 0)) return;
   const f1 = fontPx(14, 11), f2 = fontPx(12, 9.5);
-  const l1 = '? Здесь спрятан бустер';
-  const l2 = 'Захватите башню первым, чтобы его получить';
+  const sp = SPECIALS[n.special];
+  const l1 = sp ? `${sp.icon} ${sp.name} — особая башня` : '? Здесь спрятан бустер';
+  const l2 = sp ? specialText(sp)[0].toUpperCase() + specialText(sp).slice(1) + (n.owner === me ? ' (башня ваша)' : ', пока башня ваша')
+    : 'Захватите башню первым, чтобы его получить';
+  const edge = sp ? sp.color : '#ffc94d';
   ctx.font = `700 ${f1}px Rubik, sans-serif`;
   const w1 = ctx.measureText(l1).width;
   ctx.font = `500 ${f2}px Rubik, sans-serif`;
@@ -2231,9 +2325,9 @@ function drawBoosterTip(now) {
   if (y < 4) y = n.y + n.r + 18;                   // у верхнего края — под башней
   ctx.fillStyle = '#141b2df5';
   ctx.beginPath(); ctx.roundRect(x - w / 2, y, w, h, 8); ctx.fill();
-  ctx.strokeStyle = '#ffc94d'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = edge; ctx.lineWidth = 2; ctx.stroke();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#ffc94d';
+  ctx.fillStyle = edge;
   ctx.font = `700 ${f1}px Rubik, sans-serif`;
   ctx.fillText(l1, x, y + f1 * 0.3 + f1 * 0.75);
   ctx.fillStyle = '#c4cad6';
@@ -2529,11 +2623,96 @@ function drawNodes(t) {
   // нижние здания рисуются поверх верхних
   for (const n of game.nodes.slice().sort((a, b) => a.y - b.y)) {
     const box = towerBox(n);
+    if (n.special >= 0) drawSpecialUnder(n, box, t);
     if (!box) drawCircleNode(n, t);
     else if (box.neon) drawNeonNode(n, box, t);
     else drawTowerNode(n, box, t);
+    if (n.special >= 0) drawSpecialOver(n, box, t);
     drawFrozen(n);
   }
+}
+
+// ---------- Особая башня: у каждого типа своё оформление ----------
+// Под башней: цветное свечение на земле (Крепость — ещё и купол щита)
+function drawSpecialUnder(n, b, t) {
+  const s = SPECIALS[n.special], x = X(n.x);
+  const top = b ? b.top : n.y - n.r, bottom = b ? b.bottom : n.y + n.r;
+  const pulse = 0.5 + 0.5 * Math.sin(t * 2.4 + n.id);
+  const gy = bottom - n.r * 0.25, rx = n.r * (2.1 + pulse * 0.15), ry = n.r * 0.85;
+  ctx.save();
+  ctx.translate(x, gy); ctx.scale(1, ry / rx);
+  const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+  gr.addColorStop(0, alpha(s.color, 0.55)); gr.addColorStop(0.6, alpha(s.color, 0.22)); gr.addColorStop(1, alpha(s.color, 0));
+  ctx.fillStyle = gr;
+  circle(0, 0, rx); ctx.fill();
+  ctx.restore();
+  // кольцо-«постамент» с бегущим пунктиром
+  ctx.beginPath(); ctx.ellipse(x, gy, n.r * 1.55, n.r * 0.6, 0, 0, Math.PI * 2);
+  ctx.setLineDash([6, 5]); ctx.lineDashOffset = -t * 18;
+  ctx.strokeStyle = alpha(s.color, 0.85); ctx.lineWidth = 2; ctx.stroke();
+  ctx.setLineDash([]); ctx.lineDashOffset = 0;
+  if (s.key === 'fort') {                       // полупрозрачный купол щита над Крепостью
+    const h = bottom - top, cx = x, cy = gy;
+    ctx.beginPath(); ctx.ellipse(cx, cy, n.r * 1.7, h * 0.95, 0, Math.PI, Math.PI * 2);
+    const dg = ctx.createLinearGradient(cx, cy - h, cx, cy);
+    dg.addColorStop(0, alpha(s.color, 0.28)); dg.addColorStop(1, alpha(s.color, 0.04));
+    ctx.fillStyle = dg; ctx.fill();
+    ctx.strokeStyle = alpha(s.color, 0.45 + 0.3 * pulse); ctx.lineWidth = 2; ctx.stroke();
+  }
+}
+
+// Над башней: анимация по типу + значок с иконкой и подпись с названием
+function drawSpecialOver(n, b, t) {
+  const s = SPECIALS[n.special], x = X(n.x);
+  const top = b ? b.top : n.y - n.r, bottom = b ? b.bottom : n.y + n.r, h = bottom - top;
+  const ay = top + h * 0.34;                   // «верхушка» башни (ниже флага с числом)
+  ctx.save();
+  if (s.key === 'beacon') {                     // Маяк: два вращающихся луча света
+    ctx.globalCompositeOperation = 'lighter';
+    for (const k of [0, Math.PI]) {
+      const a = t * 1.3 + k, L = 150, wd = 0.22;
+      const gr = ctx.createRadialGradient(x, ay, 0, x, ay, L);
+      gr.addColorStop(0, alpha(s.color, 0.55)); gr.addColorStop(1, alpha(s.color, 0));
+      ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.moveTo(x, ay);
+      ctx.arc(x, ay, L, a - wd, a + wd); ctx.closePath(); ctx.fill();
+    }
+    circle(x, ay, 4.5); ctx.fillStyle = alpha('#ffffff', 0.9); ctx.fill();
+  } else if (s.key === 'mine') {                // Шахта: золотые искры поднимаются вверх
+    for (let i = 0; i < 8; i++) {
+      const ph = (t * 0.6 + i / 8) % 1;
+      const px = x + Math.sin(i * 2.4 + t) * n.r * 1.1, py = bottom - ph * h * 1.1;
+      const r = 2.6 * (1 - ph) + 0.8;
+      ctx.fillStyle = alpha(i % 2 ? '#ffe28a' : s.color, 1 - ph);
+      ctx.beginPath();                          // ромбик-самородок
+      ctx.moveTo(px, py - r * 1.4); ctx.lineTo(px + r, py); ctx.lineTo(px, py + r * 1.4); ctx.lineTo(px - r, py); ctx.closePath();
+      ctx.fill();
+    }
+  } else if (s.key === 'hq') {                  // Штаб: радиоволны от антенны
+    for (let i = 0; i < 3; i++) {
+      const ph = (t * 0.7 + i / 3) % 1, r = 8 + ph * 46;
+      ctx.strokeStyle = alpha(s.color, 0.8 * (1 - ph)); ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(x, ay, r, -Math.PI * 0.85, -Math.PI * 0.15); ctx.stroke();
+    }
+  }
+  ctx.restore();
+  // значок с иконкой над башней
+  const br = fontPx(13, 10), by = top - br - 3 + Math.sin(t * 2.2 + n.id) * 1.5;
+  circle(x, by, br);
+  ctx.fillStyle = '#0b0f19ee'; ctx.fill();
+  ctx.strokeStyle = s.color; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.font = `${br * 1.15}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(s.icon, x, by + br * 0.08);
+  // подпись под башней
+  // (картинки и неон запоминают в n.below, где кончаются число и уровни; у кружков — под кружком)
+  const lp = fontPx(10.5, 8.5);
+  ctx.font = `800 ${lp}px Rubik, sans-serif`;
+  ctx.lineWidth = 3; ctx.strokeStyle = '#0b0f19';
+  const ly = (b ? n.below || bottom + 2 : n.y + n.r + 6) + lp * 0.8;
+  ctx.strokeText(s.name.toUpperCase(), x, ly);
+  ctx.fillStyle = s.color;
+  ctx.fillText(s.name.toUpperCase(), x, ly);
 }
 
 function drawTowerNode(n, b, t) {
@@ -2602,6 +2781,7 @@ function drawTowerNode(n, b, t) {
     });
     below += pr * 2 + 2;
   }
+  n.below = below;                             // отсюда вниз можно подписывать (особая башня)
 
   // в башне спрятан бустер: золотой «?» у флагштока
   if (n.booster >= 0) {
@@ -2777,6 +2957,7 @@ function drawNeonNode(n, b, t) {
     });
     below += pr * 2 + 2;
   }
+  n.below = below;
   if (n.booster >= 0) {
     const br = fontPx(10, 7.5);
     const bx = x - b.w * 0.42, by = b.top + b.h * 0.18 + Math.sin(t * 3 + n.id) * 1.5;
@@ -2953,9 +3134,16 @@ function updateHud() {
     const left = Math.ceil(game.buffs[me][b.key] - game.time);
     bh += `<div class="chip buff" data-k="${b.key}" style="border-color:${b.color};color:${b.color}">${b.icon} ${left} с</div>`;
   }
+  // особая башня у вас — постоянная плашка с её значком
+  for (const n of game.nodes) {
+    if (n.special < 0 || n.owner !== me) continue;
+    const s = SPECIALS[n.special];
+    bh += `<div class="chip buff" data-k="sp${n.special}" style="border-color:${s.color};color:${s.color}">${s.icon} ${s.name}</div>`;
+  }
   if (bh !== buffKey) { $('buffs').innerHTML = bh; buffKey = bh; }
   if (tipKey) {                           // подсказка открыта — обновляем таймер или прячем, если бустер кончился
-    if (buff(game, me, tipKey)) showBuffTip(tipKey); else hideBuffTip();
+    if (tipKey.startsWith('sp') ? $('buffs').querySelector(`[data-k="${tipKey}"]`) : buff(game, me, tipKey)) showBuffTip(tipKey);
+    else hideBuffTip();
   }
 }
 let buffKey = '';
@@ -2964,12 +3152,14 @@ let buffKey = '';
 let tipKey = null;
 function showBuffTip(key) {
   const chip = $('buffs').querySelector(`[data-k="${key}"]`);
-  const b = BOOSTERS.find(x => x.key === key);
+  const sp = key.startsWith('sp') ? SPECIALS[+key.slice(2)] : null;
+  const b = sp || BOOSTERS.find(x => x.key === key);
   if (!chip || !b) { hideBuffTip(); return; }
   tipKey = key;
   const tip = $('buffTip');
-  const left = Math.max(0, Math.ceil(game.buffs[me][key] - game.time));
-  const html = `<b style="color:${b.color}">${b.icon} ${b.name}</b>${b.text}.<br><span>Осталось ${left} с</span>`;
+  const html = sp
+    ? `<b style="color:${sp.color}">${sp.icon} ${sp.name}</b>${specialText(sp)}.<br><span>Действует, пока особая башня ваша</span>`
+    : `<b style="color:${b.color}">${b.icon} ${b.name}</b>${b.text}.<br><span>Осталось ${Math.max(0, Math.ceil(game.buffs[me][key] - game.time))} с</span>`;
   if (tip.innerHTML !== html) tip.innerHTML = html;
   tip.style.borderColor = b.color;
   tip.classList.remove('hidden');
@@ -3005,7 +3195,7 @@ function updatePanel() {
   if (!single && !anyRoute) return hide();
 
   const key = single
-    ? [single.id, Math.floor(single.units), single.prod, single.def, single.route, single.route2].join(':')
+    ? [single.id, Math.floor(single.units), single.prod, single.def, single.route, single.route2, upCost(game, me, 0)].join(':')
     : 'm' + ids.join(',') + anyRoute;
   if (key !== panelKey) {
     panelKey = key;
@@ -3014,7 +3204,7 @@ function updatePanel() {
     $('unrouteBtn').classList.toggle('hidden', !anyRoute);
     if (single) for (const [btn, b] of [[$('upProd'), 'prod'], [$('upDef'), 'def']]) {
       const lv = single[b], can = canBranch(single, b), max = lv >= 3;
-      const cost = max ? 0 : CFG.cost[lv];
+      const cost = max ? 0 : upCost(game, me, lv);
       btn.querySelector('.lvl').textContent = lv ? String(lv) : '';
       btn.querySelector('.cost').textContent = !can ? '—' : max ? 'макс' : String(cost);
       btn.classList.toggle('off', !can || max || single.units < cost);
